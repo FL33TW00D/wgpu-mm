@@ -32,12 +32,12 @@ where
     let mut rng = rand::thread_rng();
     let mut data = vec![F::zero(); numel];
     for i in 0..numel {
-        data[i] = F::from(rng.gen::<F>()).unwrap();
+        data[i] = F::from(rng.gen::<F>()).unwrap() / F::from(511.91).unwrap();
     }
     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: None,
         contents: bytemuck::cast_slice(&data),
-        usage: wgpu::BufferUsages::STORAGE,
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
     });
     buffer
 }
@@ -50,17 +50,20 @@ async fn main() {
 
     let (device, queue) = gpu_handle().await;
     let mut tera = Tera::default();
-    tera.add_raw_template("gemm_macro.wgsl", include_str!("../gemm_macro.wgsl"))
-        .unwrap();
-    tera.add_raw_template("gemm.wgsl", include_str!("../gemm.wgsl"))
+    tera.add_raw_template(
+        "gemm_macro.wgsl",
+        include_str!("../shaders/gemm_macro.wgsl"),
+    )
+    .unwrap();
+    tera.add_raw_template("gemm.wgsl", include_str!("../shaders/gemm.wgsl"))
         .unwrap();
 
     let mut context = Context::new();
     context.insert("M", &M);
     context.insert("N", &N);
     context.insert("K", &K);
-    context.insert("workgroup_size_x", &8);
-    context.insert("workgroup_size_y", &8);
+    context.insert("workgroup_size_x", &2);
+    context.insert("workgroup_size_y", &1);
     context.insert("workgroup_size_z", &1);
 
     let shader = tera.render("gemm.wgsl", &context).unwrap();
@@ -96,7 +99,10 @@ async fn main() {
         mm(&device, &pipeline, &B, &A, &C),
     ]);
 
-    let start = std::time::Instant::now();
+    let warmup_res = to_cpu(&C, &device, &queue).await;
+    println!("{:?}", warmup_res[0]);
+
+    let start = Instant::now();
     queue.submit(vec![
         mm(&device, &pipeline, &A, &B, &C),
         mm(&device, &pipeline, &C, &B, &A),
@@ -111,11 +117,16 @@ async fn main() {
         mm(&device, &pipeline, &C, &B, &A),
     ]);
 
+    let result = to_cpu(&C, &device, &queue).await;
+    println!("{:?}", result[0]);
+
     let elapsed = start.elapsed();
 
-    let nanos = elapsed.as_nanos();
+    let millis = elapsed.as_millis();
+    println!("{} ms", millis);
     let flops = M * N * K * 2 * 10;
-    let gflops = flops as f64 / nanos as f64 * 1e-9;
+    println!("{} FLOPS", flops);
+    let gflops = flops as f64 / (millis as f64 * 1e6);
     println!("{} GFLOPS", gflops);
 }
 
@@ -152,14 +163,16 @@ pub fn mm(
         cpass.set_pipeline(&pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
 
-        cpass.dispatch_workgroups(1, 1, 1);
+        cpass.dispatch_workgroups(32768, 1, 1);
     }
     encoder.finish()
 }
 
-pub async fn to_cpu(buffer: wgpu::Buffer, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<f32> {
+pub async fn to_cpu(buffer: &wgpu::Buffer, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<f32> {
     let buffer_slice = buffer.slice(..);
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    println!("reading buffer");
+    println!("buffer size: {:?}", buffer_slice);
 
     wgpu::util::DownloadBuffer::read_buffer(device, queue, &buffer_slice, move |buffer| {
         tx.send(match buffer {
