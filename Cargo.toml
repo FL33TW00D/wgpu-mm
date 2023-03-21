@@ -1,0 +1,16 @@
+[package]
+name = "wgpu-mm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytemuck = "1.13.1"
+num-traits = "0.2.15"
+rand = "0.8.5"
+tera = "1.18.1"
+tokio = { version = "1.26.0", features = ["full"] }
+wgpu = "0.15.1"
+half = { version = "2.2.1", features = ["bytemuck", "num-traits"] }
+
