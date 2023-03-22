@@ -14,7 +14,7 @@ Our baseline is 400GFLOPS currently or ~15% of peak theoretical. This kernel is 
 In [this post](https://jott.live/markdown/m1_webgpu_perf), Bram his ~900GFLOPS or ~35% of theoretical peak without using SIMD
 group magic, so this seems like the one to beat.
 
-Implementing the code from Bram's blogpost, we can see it holds up with approx ~860GFLOPs.
+Implementing the code from Bram's blogpost, we can see it holds up with approx ~860GFLOPs (using `create_shader_module_unchecked` which removes all bounds checking). With bounds checking we get 580GFLOPS.
 
 A custom metal shader from [Tinygrad](https://github.com/geohot/tinygrad) can
 hit 1800 GFLOPS or ~70% of theoretical peak. This shader uses SIMD groups which
