@@ -114,6 +114,8 @@ async fn main() {
     .unwrap();
     tera.add_raw_template("gemm.wgsl", include_str!("../shaders/gemm.wgsl"))
         .unwrap();
+    tera.add_raw_template("gemm2.wgsl", include_str!("../shaders/gemm2.wgsl"))
+        .unwrap();
 
     let mut context = Context::new();
     context.insert("M", &M);
@@ -123,18 +125,20 @@ async fn main() {
     let n_blocks = Workload::ceil(M * N, 4 * 4);
     let (x_count, x_size) = Workload::compute_dim(n_blocks, WorkloadDim::X);
 
-    context.insert("workgroup_size_x", &x_size);
-    context.insert("workgroup_size_y", &1);
+    context.insert("workgroup_size_x", &2);
+    context.insert("workgroup_size_y", &8);
     context.insert("workgroup_size_z", &1);
 
-    let workgroup_count = WorkgroupCount(x_count, 1, 1);
+    let workgroup_count = WorkgroupCount(128, 32, 1);
 
-    let shader = tera.render("gemm.wgsl", &context).unwrap();
+    let shader = tera.render("gemm2.wgsl", &context).unwrap();
 
-    let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: None,
-        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&shader)),
-    });
+    let shader_module = unsafe {
+        device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&shader)),
+        })
+    };
 
     let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
         label: None,
@@ -145,6 +149,8 @@ async fn main() {
 
     if !check(&device, &queue, &pipeline, &workgroup_count).await {
         panic!("Matrix multiplication does not match reference implementation");
+    } else {
+        println!("Matrix multiplication matches reference implementation");
     }
 
     let (A, _) = rand_gpu_buffer::<f32>(&device, M * K, false);
