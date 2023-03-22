@@ -1,11 +1,53 @@
 #![allow(non_snake_case)]
 use std::{borrow::Cow, time::Instant};
 
+use matrixmultiply::sgemm;
 use num_traits::Float;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use tera::{Context, Tera};
 use wgpu::{util::DeviceExt, InstanceDescriptor};
 use wgpu_mm::{WorkgroupCount, Workload, WorkloadDim};
+
+const M: usize = 1024;
+const N: usize = 1024;
+const K: usize = 1024;
+
+pub fn check() -> bool {
+    unsafe {
+        sgemm(
+            M,
+            K,
+            N,
+            1.0,
+            ap.as_ptr(),
+            ar,
+            ac,
+            bp.as_ptr(),
+            br,
+            bc,
+            1.0,
+            cp.as_mut_ptr(),
+            cr,
+            cc,
+        );
+    }
+    let mut max_diff = 0.0;
+    for i in 0..m * n {
+        let diff = (gpu_out[i] - c_cpu[i]).abs();
+        assert!(diff < 0.0001);
+        if diff > max_diff {
+            max_diff = diff;
+        }
+    }
+    if max_diff < 0.0001 {
+        // println!("pass! max diff: {}", max_diff);
+        true
+    } else {
+        println!("fail! max diff: {}", max_diff);
+        println!("{:?} {:?}", gpu_out, c_cpu);
+        false
+    }
+}
 
 pub async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::PRIMARY);
@@ -26,7 +68,8 @@ pub async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
 pub fn rand_gpu_buffer<F: Float + bytemuck::Pod>(
     device: &wgpu::Device,
     numel: usize,
-) -> wgpu::Buffer
+    return_cpu: bool,
+) -> (wgpu::Buffer, Option<Vec<F>>)
 where
     Standard: Distribution<F>,
 {
@@ -40,15 +83,17 @@ where
         contents: bytemuck::cast_slice(&data),
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
     });
-    buffer
+
+    if return_cpu {
+        (buffer, Some(data))
+    } else {
+        (buffer, None)
+    }
 }
 
 #[tokio::main]
 async fn main() {
     let _ = env_logger::builder().try_init();
-    const M: usize = 1024;
-    const N: usize = 1024;
-    const K: usize = 1024;
 
     let (device, queue) = gpu_handle().await;
     let mut tera = Tera::default();
@@ -90,9 +135,9 @@ async fn main() {
         entry_point: "main",
     });
 
-    let A = rand_gpu_buffer::<f32>(&device, M * K);
-    let B = rand_gpu_buffer::<f32>(&device, N * K);
-    let C = rand_gpu_buffer::<f32>(&device, M * N);
+    let (A, _) = rand_gpu_buffer::<f32>(&device, M * K, false);
+    let (B, _) = rand_gpu_buffer::<f32>(&device, N * K, false);
+    let (C, _) = rand_gpu_buffer::<f32>(&device, M * N, false);
 
     //warmup
     queue.submit(vec![
