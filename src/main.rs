@@ -44,6 +44,7 @@ where
 
 #[tokio::main]
 async fn main() {
+    let _ = env_logger::builder().try_init();
     const M: usize = 1024;
     const N: usize = 1024;
     const K: usize = 1024;
@@ -67,10 +68,9 @@ async fn main() {
     context.insert("workgroup_size_z", &1);
 
     let shader = tera.render("gemm.wgsl", &context).unwrap();
-    println!("{}", shader);
 
     let shader_module = unsafe {
-        device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&shader)),
         })
