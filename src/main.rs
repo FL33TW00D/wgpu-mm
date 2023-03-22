@@ -114,7 +114,7 @@ async fn main() {
     .unwrap();
     tera.add_raw_template("gemm.wgsl", include_str!("../shaders/gemm.wgsl"))
         .unwrap();
-    tera.add_raw_template("gemm2.wgsl", include_str!("../shaders/gemm2.wgsl"))
+    tera.add_raw_template("gemm2.wgsl", include_str!("../shaders/bram.wgsl"))
         .unwrap();
 
     let mut context = Context::new();
@@ -125,11 +125,11 @@ async fn main() {
     let n_blocks = Workload::ceil(M * N, 4 * 4);
     let (x_count, x_size) = Workload::compute_dim(n_blocks, WorkloadDim::X);
 
-    context.insert("workgroup_size_x", &2);
+    context.insert("workgroup_size_x", &4);
     context.insert("workgroup_size_y", &8);
     context.insert("workgroup_size_z", &1);
 
-    let workgroup_count = WorkgroupCount(128, 32, 1);
+    let workgroup_count = WorkgroupCount(64, 32, 1);
 
     let shader = tera.render("gemm2.wgsl", &context).unwrap();
 
