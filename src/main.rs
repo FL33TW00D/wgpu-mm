@@ -12,39 +12,49 @@ const M: usize = 1024;
 const N: usize = 1024;
 const K: usize = 1024;
 
-pub fn check() -> bool {
-    unsafe {
-        sgemm(
-            M,
-            K,
-            N,
-            1.0,
-            ap.as_ptr(),
-            ar,
-            ac,
-            bp.as_ptr(),
-            br,
-            bc,
-            1.0,
-            cp.as_mut_ptr(),
-            cr,
-            cc,
-        );
+pub fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32]) {
+    for m in 0..M {
+        for n in 0..N {
+            let mut res = 0.;
+            for k in 0..K {
+                res += A[m * K + k] * B[k * N + n];
+            }
+            C[m * N + n] = res;
+        }
     }
+}
+
+pub async fn check(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    pipeline: &wgpu::ComputePipeline,
+    workgroup_count: &WorkgroupCount,
+) -> bool {
+    let (A, A_cpu) = rand_gpu_buffer::<f32>(&device, M * K, true);
+    let (B, B_cpu) = rand_gpu_buffer::<f32>(&device, K * N, true);
+    let (C, C_cpu) = rand_gpu_buffer::<f32>(&device, M * N, true);
+    let mut C_cpu = C_cpu.unwrap();
+
+    mm_ref(&A_cpu.unwrap(), &B_cpu.unwrap(), &mut C_cpu);
+
+    let mm = mm(&device, &pipeline, &A, &B, &C, &workgroup_count);
+    queue.submit(vec![mm]);
+    let gpu_out = to_cpu(&C, &device, &queue).await;
+
     let mut max_diff = 0.0;
-    for i in 0..m * n {
-        let diff = (gpu_out[i] - c_cpu[i]).abs();
-        assert!(diff < 0.0001);
+    for i in 0..M * N {
+        let diff = (gpu_out[i] - C_cpu[i]).abs();
+        //assert!(diff < 0.0001);
         if diff > max_diff {
             max_diff = diff;
         }
     }
     if max_diff < 0.0001 {
-        // println!("pass! max diff: {}", max_diff);
         true
     } else {
         println!("fail! max diff: {}", max_diff);
-        println!("{:?} {:?}", gpu_out, c_cpu);
+        println!("GPU: {:?}", &gpu_out[..32]);
+        println!("CPU: {:?}", &C_cpu[..32]);
         false
     }
 }
@@ -121,12 +131,10 @@ async fn main() {
 
     let shader = tera.render("gemm.wgsl", &context).unwrap();
 
-    let shader_module = unsafe {
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&shader)),
-        })
-    };
+    let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: None,
+        source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&shader)),
+    });
 
     let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
         label: None,
@@ -135,8 +143,12 @@ async fn main() {
         entry_point: "main",
     });
 
+    if !check(&device, &queue, &pipeline, &workgroup_count).await {
+        panic!("Matrix multiplication does not match reference implementation");
+    }
+
     let (A, _) = rand_gpu_buffer::<f32>(&device, M * K, false);
-    let (B, _) = rand_gpu_buffer::<f32>(&device, N * K, false);
+    let (B, _) = rand_gpu_buffer::<f32>(&device, K * N, false);
     let (C, _) = rand_gpu_buffer::<f32>(&device, M * N, false);
 
     //warmup
@@ -151,8 +163,7 @@ async fn main() {
         mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
     ]);
 
-    let warmup_res = to_cpu(&C, &device, &queue).await;
-    println!("{:?}", warmup_res[0]);
+    let _warmup_res = to_cpu(&C, &device, &queue).await;
 
     let start = Instant::now();
     queue.submit(vec![
@@ -169,8 +180,7 @@ async fn main() {
         mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
     ]);
 
-    let result = to_cpu(&C, &device, &queue).await;
-    println!("{:?}", result[0]);
+    let _result = to_cpu(&C, &device, &queue).await;
 
     let elapsed = start.elapsed();
 
@@ -224,8 +234,6 @@ pub fn mm(
 pub async fn to_cpu(buffer: &wgpu::Buffer, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<f32> {
     let buffer_slice = buffer.slice(..);
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
-    println!("reading buffer");
-    println!("buffer size: {:?}", buffer_slice);
 
     wgpu::util::DownloadBuffer::read_buffer(device, queue, &buffer_slice, move |buffer| {
         tx.send(match buffer {
