@@ -17,3 +17,7 @@ WebGPU doesn't support yet - but it's been proposed a few times e.g [here](https
 
 In this post, Bram his ~900GFLOPS or ~35% of theoretical peak without using SIMD
 group magic, so this seems like the one to beat.
+
+
+## Read More 
+[NVIDIA Performance Guide](https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html#gpu-perf)

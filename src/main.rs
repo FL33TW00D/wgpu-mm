@@ -5,6 +5,7 @@ use num_traits::Float;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use tera::{Context, Tera};
 use wgpu::{util::DeviceExt, InstanceDescriptor};
+use wgpu_mm::{WorkgroupCount, Workload, WorkloadDim};
 
 pub async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::PRIMARY);
@@ -63,9 +64,15 @@ async fn main() {
     context.insert("M", &M);
     context.insert("N", &N);
     context.insert("K", &K);
-    context.insert("workgroup_size_x", &2);
+
+    let n_blocks = Workload::ceil(M * N, 4 * 4);
+    let (x_count, x_size) = Workload::compute_dim(n_blocks, WorkloadDim::X);
+
+    context.insert("workgroup_size_x", &x_size);
     context.insert("workgroup_size_y", &1);
     context.insert("workgroup_size_z", &1);
+
+    let workgroup_count = WorkgroupCount(x_count, 1, 1);
 
     let shader = tera.render("gemm.wgsl", &context).unwrap();
 
@@ -89,14 +96,14 @@ async fn main() {
 
     //warmup
     queue.submit(vec![
-        mm(&device, &pipeline, &A, &B, &C),
-        mm(&device, &pipeline, &C, &B, &A),
-        mm(&device, &pipeline, &A, &C, &B),
-        mm(&device, &pipeline, &B, &A, &C),
-        mm(&device, &pipeline, &A, &B, &C),
-        mm(&device, &pipeline, &C, &B, &A),
-        mm(&device, &pipeline, &A, &C, &B),
-        mm(&device, &pipeline, &B, &A, &C),
+        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
+        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
+        mm(&device, &pipeline, &A, &C, &B, &workgroup_count),
+        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
+        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
+        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
+        mm(&device, &pipeline, &A, &C, &B, &workgroup_count),
+        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
     ]);
 
     let warmup_res = to_cpu(&C, &device, &queue).await;
@@ -104,17 +111,17 @@ async fn main() {
 
     let start = Instant::now();
     queue.submit(vec![
-        mm(&device, &pipeline, &A, &B, &C),
-        mm(&device, &pipeline, &C, &B, &A),
-        mm(&device, &pipeline, &A, &C, &B),
-        mm(&device, &pipeline, &B, &A, &C),
-        mm(&device, &pipeline, &A, &B, &C),
-        mm(&device, &pipeline, &C, &B, &A),
-        mm(&device, &pipeline, &A, &C, &B),
-        mm(&device, &pipeline, &B, &A, &C),
-        mm(&device, &pipeline, &A, &B, &C),
-        mm(&device, &pipeline, &B, &A, &C),
-        mm(&device, &pipeline, &C, &B, &A),
+        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
+        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
+        mm(&device, &pipeline, &A, &C, &B, &workgroup_count),
+        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
+        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
+        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
+        mm(&device, &pipeline, &A, &C, &B, &workgroup_count),
+        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
+        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
+        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
+        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
     ]);
 
     let result = to_cpu(&C, &device, &queue).await;
@@ -136,6 +143,7 @@ pub fn mm(
     A: &wgpu::Buffer,
     B: &wgpu::Buffer,
     C: &wgpu::Buffer,
+    workgroup_count: &WorkgroupCount,
 ) -> wgpu::CommandBuffer {
     let mut encoder =
         device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -163,7 +171,7 @@ pub fn mm(
         cpass.set_pipeline(&pipeline);
         cpass.set_bind_group(0, &bind_group, &[]);
 
-        cpass.dispatch_workgroups(32768, 1, 1);
+        cpass.dispatch_workgroups(workgroup_count.0, workgroup_count.1, workgroup_count.2);
     }
     encoder.finish()
 }
