@@ -1,19 +1,15 @@
 import numpy as np
+from tinygrad.helpers import dtypes
 from tinygrad.runtime.ops_metal import RawMetalBuffer, MetalProgram
 
 N = 1024 
-a = RawMetalBuffer(N*N*4)
-b = RawMetalBuffer(N*N*4)
-c = RawMetalBuffer(N*N*4)
+
+a = RawMetalBuffer(N*N, dtypes.float32)
 
 nb = np.random.default_rng().standard_normal(size=(N,N), dtype=np.float32) #.astype(np.int32).astype(np.float32)
 nc = np.random.default_rng().standard_normal(size=(N,N), dtype=np.float32) #.astype(np.int32).astype(np.float32)
-#nb = np.eye(N)
-#nc = np.eye(N)
-#nb = np.ones((N,N))
-#nc = np.ones((N,N))
-b.copyin(nb)
-c.copyin(nc)
+b = RawMetalBuffer.fromCPU(nb)
+c = RawMetalBuffer.fromCPU(nc)
 
 FLOPS = N*N*N*2
 
@@ -22,17 +18,12 @@ prog = MetalProgram("test", f"""
 #include <metal_simdgroup_matrix>  // Available from Metal version 2.3 released with OS X 11.0+
 using namespace metal;
 kernel void test(device float *a, device const float *data1, device const float *data2, uint3 gid [[thread_position_in_grid]], uint3 xid [[threadgroup_position_in_grid]], uint3 lid [[thread_position_in_threadgroup]], uint sidx [[simdgroup_index_in_threadgroup]]) {{
-  // 1-2 simd groups
-  //uint idx = gid.x/32;
-  //uint pos_x = (idx%{N//32}) * 32;
-  //uint pos_y = (idx/{N//32}) * 32;
   // 4 simd groups
   uint idx = gid.x/128;
   uint pos_x = (idx%{N//64}) * 64;
   uint pos_y = (idx/{N//64}) * 64;
   pos_x += (sidx%2) * 32;
   pos_y += (sidx/2) * 32;
-  // 16 simd groups (slow)
   simdgroup_float8x8 acc[4][4];
   for (uint i = 0; i < 4; i++) {{
     for (uint j = 0; j < 4; j++) {{
@@ -76,7 +67,7 @@ kernel void test(device float *a, device const float *data1, device const float 
     }}
   }}
 }}""")
-tm = min([prog([N*N//(2*4*4)], [4*32], a, b, c, wait=True) for _ in range(10)])
+tm = min([prog([N*N//(2*4*4)], [4*32], a, b, c, wait=True) for _ in range(20)])
 na = a.toCPU().reshape(N,N)
 comp = nb@nc
 if N <= 32:
@@ -84,3 +75,15 @@ if N <= 32:
   print(comp)
 print(f"{N*N:10d} {tm*1e6:9.2f} us, would be {FLOPS*1e-9/tm:.2f} GFLOPS matmul")
 np.testing.assert_allclose(na, comp, atol=1e-3)
+
+import time, torch
+b = torch.from_numpy(nb).to('mps')
+c = torch.from_numpy(nc).to('mps')
+
+def torch_prog(b, c):
+  st = time.perf_counter()
+  a = b@c
+  a.cpu()
+  return time.perf_counter() - st
+tm = min([torch_prog(b, c) for _ in range(20)])
+print(f"{N*N:10d} {tm*1e6:9.2f} us, would be {FLOPS*1e-9/tm:.2f} GFLOPS matmul in torch")

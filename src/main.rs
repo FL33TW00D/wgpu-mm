@@ -43,7 +43,6 @@ pub async fn check(
     let mut max_diff = 0.0;
     for i in 0..M * N {
         let diff = (gpu_out[i] - C_cpu[i]).abs();
-        //assert!(diff < 0.0001);
         if diff > max_diff {
             max_diff = diff;
         }
@@ -131,11 +130,12 @@ async fn main() {
     context.insert("workgroup_size_z", &1);
 
     let workgroup_count = WorkgroupCount((N / 64) as u32, (M / 32) as u32, 1);
+    //let workgroup_count = WorkgroupCount(128, 32, 1);
 
     let shader = tera.render("gemm3.wgsl", &context).unwrap();
 
     let shader_module = unsafe {
-        device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
+        device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&shader)),
         })
@@ -191,11 +191,10 @@ async fn main() {
 
     let elapsed = start.elapsed();
 
-    let millis = elapsed.as_millis();
-    println!("{} ms", millis);
+    let nanos = elapsed.as_nanos();
+    println!("{} ns", nanos);
     let flops = M * N * K * 2 * 10;
-    println!("{} FLOPS", flops);
-    let gflops = flops as f64 / (millis as f64 * 1e6);
+    let gflops = (flops as f64 / 1e9) / (nanos as f64 / 1e9);
     println!("{} GFLOPS", gflops);
 }
 
