@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 use std::{borrow::Cow, time::Instant};
 
-use matrixmultiply::sgemm;
 use num_traits::Float;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use tera::{Context, Tera};
@@ -116,6 +115,8 @@ async fn main() {
         .unwrap();
     tera.add_raw_template("gemm2.wgsl", include_str!("../shaders/bram.wgsl"))
         .unwrap();
+    tera.add_raw_template("gemm3.wgsl", include_str!("../shaders/gemm3.wgsl"))
+        .unwrap();
 
     let mut context = Context::new();
     context.insert("M", &M);
@@ -125,13 +126,13 @@ async fn main() {
     let n_blocks = Workload::ceil(M * N, 4 * 4);
     let (x_count, x_size) = Workload::compute_dim(n_blocks, WorkloadDim::X);
 
-    context.insert("workgroup_size_x", &4);
+    context.insert("workgroup_size_x", &8);
     context.insert("workgroup_size_y", &8);
     context.insert("workgroup_size_z", &1);
 
-    let workgroup_count = WorkgroupCount(64, 32, 1);
+    let workgroup_count = WorkgroupCount((N / 64) as u32, (M / 32) as u32, 1);
 
-    let shader = tera.render("gemm2.wgsl", &context).unwrap();
+    let shader = tera.render("gemm3.wgsl", &context).unwrap();
 
     let shader_module = unsafe {
         device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
