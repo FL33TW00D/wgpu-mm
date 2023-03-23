@@ -135,7 +135,7 @@ async fn main() {
     let shader = tera.render("gemm3.wgsl", &context).unwrap();
 
     let shader_module = unsafe {
-        device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&shader)),
         })

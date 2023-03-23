@@ -32,11 +32,13 @@ fn main(
     var arow2: vec4<f32> = A[(y * 4u + 2u) * KD4 + k];
     var arow3: vec4<f32> = A[(y * 4u + 3u) * KD4 + k];
     var brow: vec4<f32>;
+
     brow = B[(k * 4u + 0u) * ND4 + x * 2u + 0u];
     result_0_0 = vec4<f32>(arow0.x) * brow + result_0_0;
     result_0_1 = vec4<f32>(arow1.x) * brow + result_0_1;
     result_0_2 = vec4<f32>(arow2.x) * brow + result_0_2;
     result_0_3 = vec4<f32>(arow3.x) * brow + result_0_3;
+
     brow = B[(k * 4u + 0u) * ND4 + x * 2u + 1u];
     result_1_0 = vec4<f32>(arow0.x) * brow + result_1_0;
     result_1_1 = vec4<f32>(arow1.x) * brow + result_1_1;
@@ -48,6 +50,7 @@ fn main(
     result_0_1 = vec4<f32>(arow1.y) * brow + result_0_1;
     result_0_2 = vec4<f32>(arow2.y) * brow + result_0_2;
     result_0_3 = vec4<f32>(arow3.y) * brow + result_0_3;
+
     brow = B[(k * 4u + 1u) * ND4 + x * 2u + 1u];
     result_1_0 = vec4<f32>(arow0.y) * brow + result_1_0;
     result_1_1 = vec4<f32>(arow1.y) * brow + result_1_1;
@@ -59,6 +62,7 @@ fn main(
     result_0_1 = vec4<f32>(arow1.z) * brow + result_0_1;
     result_0_2 = vec4<f32>(arow2.z) * brow + result_0_2;
     result_0_3 = vec4<f32>(arow3.z) * brow + result_0_3;
+
     brow = B[(k * 4u + 2u) * ND4 + x * 2u + 1u];
     result_1_0 = vec4<f32>(arow0.z) * brow + result_1_0;
     result_1_1 = vec4<f32>(arow1.z) * brow + result_1_1;
@@ -70,6 +74,7 @@ fn main(
     result_0_1 = vec4<f32>(arow1.w) * brow + result_0_1;
     result_0_2 = vec4<f32>(arow2.w) * brow + result_0_2;
     result_0_3 = vec4<f32>(arow3.w) * brow + result_0_3;
+
     brow = B[(k * 4u + 3u) * ND4 + x * 2u + 1u];
     result_1_0 = vec4<f32>(arow0.w) * brow + result_1_0;
     result_1_1 = vec4<f32>(arow1.w) * brow + result_1_1;
