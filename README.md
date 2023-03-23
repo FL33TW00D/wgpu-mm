@@ -16,6 +16,9 @@ group magic, so this seems like the one to beat.
 
 Implementing the code from Bram's blogpost, we can see it holds up with approx ~860GFLOPs (using `create_shader_module_unchecked` which removes all bounds checking). With bounds checking we get 580GFLOPS.
 
+The excellent [Webgpu-BLAS](https://github.com/milhidaka/webgpu-blas) repo gives an example of a shader that hits 933 GFLOPs.
+
+
 A custom metal shader from [Tinygrad](https://github.com/geohot/tinygrad) can
 hit 1800 GFLOPS or ~70% of theoretical peak. This shader uses SIMD groups which
 WebGPU doesn't support yet - but it's been proposed a few times e.g [here](https://github.com/gpuweb/gpuweb/issues/3950).
