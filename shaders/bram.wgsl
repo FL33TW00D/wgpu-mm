@@ -1,3 +1,4 @@
+//Original: https://jott.live/markdown/m1_webgpu_perf
 @group(0) @binding(0)
 var<storage, read> A: array<vec4<f32>>;
 

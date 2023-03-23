@@ -1,3 +1,4 @@
+//Original: https://github.com/webonnx/wonnx/blob/master/wonnx/templates/matrix/gemm.wgsl
 {% macro gemm_core(A, B) %}
     let y = global_id.x % {{ N / 4 }}u;
     let x = global_id.x / {{ N / 4 }}u;

@@ -1,3 +1,4 @@
+//Original: https://github.com/milhidaka/webgpu-blas/blob/master/src/shader_sgemm_block.ts
 @group(0) @binding(0)
 var<storage, read> A: array<vec4<f32>>;
 
