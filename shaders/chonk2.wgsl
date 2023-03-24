@@ -24,9 +24,10 @@ fn main(
     {% endfor %}
 
     for(var k: u32 = 0u; k < KD; k = k + 1u){
-        {% for ax in range(end=A_TILE_X) -%} //don't support A_TILE_K > 1
+        //Load A tile
+        {% for ax in range(end=A_TILE_X) -%}
             {% for ay in range(end=A_TILE_Y) -%}
-                var a{{ ax }}_{{ ay }} = A[(y * 4u + {{ ay }}u) * KD + k + {{ ax }}u * 4u];
+                var a{{ ax }}_{{ ay }} = A[(y * 4u + {{ ay }}u) * KD + k * {{ A_TILE_X }}u + {{ ax }}u];
             {% endfor %}    
         {% endfor %}
         var brow: vec4<f32>;
