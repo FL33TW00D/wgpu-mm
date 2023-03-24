@@ -138,9 +138,6 @@ async fn main() {
     context.insert("A_TILE_M", &A_TILE_M);
     context.insert("components", &['x', 'y', 'z', 'w']);
 
-    let n_blocks = Workload::ceil(M * N, 4 * 4);
-    let (x_count, x_size) = Workload::compute_dim(n_blocks, WorkloadDim::X);
-
     context.insert("workgroup_size_x", &8);
     context.insert("workgroup_size_y", &8);
     context.insert("workgroup_size_z", &1);
