@@ -35,7 +35,7 @@ fn main(
             {% for x_coord in range(end=B_TILE_X) -%}
                 brow = B[(k * 4u + {{ component_idx }}u) * ND + x * {{ B_TILE_X }}u + {{ x_coord }}u];
                 {% for y_coord in range(end=B_TILE_Y) -%}
-                    result{{ x_coord }}_{{ y_coord }} = vec4<f32>(a0_{{ y_coord }}.{{ components[component_idx] }} * brow + result{{ x_coord }}_{{ y_coord }});
+                    result{{ x_coord }}_{{ y_coord }} = fma(vec4<f32>(a0_{{ y_coord }}.{{ components[component_idx] }}), brow, result{{ x_coord }}_{{ y_coord }});
                 {% endfor %}
             {% endfor %}
         {% endfor %}
