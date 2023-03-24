@@ -128,14 +128,14 @@ async fn main() {
     context.insert("N", &N);
     context.insert("K", &K);
 
-    let B_TILE_X = 2;
-    let B_TILE_Y = 4;
-    let A_TILE_X = 1;
-    let A_TILE_Y = 4;
-    context.insert("B_TILE_X", &B_TILE_X);
-    context.insert("B_TILE_Y", &B_TILE_Y);
-    context.insert("A_TILE_X", &A_TILE_X);
-    context.insert("A_TILE_Y", &A_TILE_Y);
+    let B_TILE_N = 2;
+    let B_TILE_K = 4;
+    let A_TILE_K = 1;
+    let A_TILE_M = 4;
+    context.insert("B_TILE_N", &B_TILE_N);
+    context.insert("B_TILE_K", &B_TILE_K);
+    context.insert("A_TILE_K", &A_TILE_K);
+    context.insert("A_TILE_M", &A_TILE_M);
     context.insert("components", &['x', 'y', 'z', 'w']);
 
     let n_blocks = Workload::ceil(M * N, 4 * 4);

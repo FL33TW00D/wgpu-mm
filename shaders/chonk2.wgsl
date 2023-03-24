@@ -17,33 +17,33 @@ fn main(
     let KD = {{ K / 4 }}u;
     let ND = {{ N / 4 }}u;
         
-    {% for x_coord in range(end=B_TILE_X) -%}
-        {% for y_coord in range(end=B_TILE_Y) -%}
+    {% for x_coord in range(end=B_TILE_N) -%}
+        {% for y_coord in range(end=B_TILE_K) -%}
             var result{{ x_coord }}_{{ y_coord }}: vec4<f32> = vec4<f32>();
         {% endfor %}
     {% endfor %}
 
     for(var k: u32 = 0u; k < KD; k = k + 1u){
-        {% for x_coord in range(end=A_TILE_X) -%} //don't support A_TILE_X > 1
-            {% for y_coord in range(end=A_TILE_Y) -%}
+        {% for x_coord in range(end=A_TILE_K) -%} //don't support A_TILE_K > 1
+            {% for y_coord in range(end=A_TILE_M) -%}
                 var a{{ x_coord }}_{{ y_coord }} = A[(y * 4u + {{ y_coord }}u) * KD + k];
             {% endfor %}    
         {% endfor %}
         var brow: vec4<f32>;
 
         {% for component_idx in range(end=4) -%}
-            {% for x_coord in range(end=B_TILE_X) -%}
-                brow = B[(k * 4u + {{ component_idx }}u) * ND + x * {{ B_TILE_X }}u + {{ x_coord }}u];
-                {% for y_coord in range(end=B_TILE_Y) -%}
+            {% for x_coord in range(end=B_TILE_N) -%}
+                brow = B[(k * 4u + {{ component_idx }}u) * ND + x * {{ B_TILE_N }}u + {{ x_coord }}u];
+                {% for y_coord in range(end=B_TILE_K) -%}
                     result{{ x_coord }}_{{ y_coord }} = fma(vec4<f32>(a0_{{ y_coord }}.{{ components[component_idx] }}), brow, result{{ x_coord }}_{{ y_coord }});
                 {% endfor %}
             {% endfor %}
         {% endfor %}
     }
 
-    {% for x_coord in range(end=B_TILE_X) -%}
-        {% for y_coord in range(end=B_TILE_Y) -%}
-            C[x * {{ B_TILE_X }}u + {{ x_coord }}u + (y * 4u + {{ y_coord }}u) * ND] = result{{ x_coord }}_{{ y_coord }};
+    {% for x_coord in range(end=B_TILE_N) -%}
+        {% for y_coord in range(end=B_TILE_K) -%}
+            C[x * {{ B_TILE_N }}u + {{ x_coord }}u + (y * 4u + {{ y_coord }}u) * ND] = result{{ x_coord }}_{{ y_coord }};
         {% endfor %}
     {% endfor %}
 }
