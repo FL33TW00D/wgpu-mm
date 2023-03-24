@@ -1,0 +1,246 @@
+    // language: metal2.4
+    #include <metal_stdlib>
+    #include <simd/simd.h>
+
+    using metal::uint;
+
+    struct _mslBufferSizes {
+        uint size0;
+        uint size1;
+        uint size2;
+    };
+
+    typedef metal::float4 type_1[1];
+    constant metal::float4 const_type = {0.0, 0.0, 0.0, 0.0};
+
+    struct main_Input {
+    };
+    kernel void main_(
+      metal::uint3 global_id [[thread_position_in_grid]]
+    , device type_1 const& A [[buffer(0)]]
+    , device type_1 const& B [[buffer(1)]]
+    , device type_1& C [[buffer(2)]]
+    , constant _mslBufferSizes& _buffer_sizes [[buffer(3)]]
+    ) {
+        metal::float4 result_0_0_ = {};
+        metal::float4 result_0_1_ = {};
+        metal::float4 result_0_2_ = {};
+        metal::float4 result_0_3_ = {};
+        metal::float4 result_1_0_ = {};
+        metal::float4 result_1_1_ = {};
+        metal::float4 result_1_2_ = {};
+        metal::float4 result_1_3_ = {};
+        uint k = {};
+        metal::float4 arow0_ = {};
+        metal::float4 arow1_ = {};
+        metal::float4 arow2_ = {};
+        metal::float4 arow3_ = {};
+        metal::float4 brow = {};
+        uint x = global_id.x;
+        uint y = global_id.y;
+        result_0_0_ = const_type;
+        result_0_1_ = const_type;
+        result_0_2_ = const_type;
+        result_0_3_ = const_type;
+        result_1_0_ = const_type;
+        result_1_1_ = const_type;
+        result_1_2_ = const_type;
+        result_1_3_ = const_type;
+        k = 0u;
+        bool loop_init = true;
+        while(true) {
+            if (!loop_init) {
+                uint _e374 = k;
+                k = _e374 + 1u;
+            }
+            loop_init = false;
+            uint _e23 = k;
+            if (_e23 < 256u) {
+            } else {
+                break;
+            }
+            {
+                uint _e31 = k;
+                metal::float4 _e34 = A[(((y * 4u) + 0u) * 256u) + _e31];
+                arow0_ = _e34;
+                uint _e42 = k;
+                metal::float4 _e45 = A[(((y * 4u) + 1u) * 256u) + _e42];
+                arow1_ = _e45;
+                uint _e53 = k;
+                metal::float4 _e56 = A[(((y * 4u) + 2u) * 256u) + _e53];
+                arow2_ = _e56;
+                uint _e64 = k;
+                metal::float4 _e67 = A[(((y * 4u) + 3u) * 256u) + _e64];
+                arow3_ = _e67;
+                uint _e71 = k;
+                metal::float4 _e83 = B[((((_e71 * 4u) + 0u) * 256u) + (x * 2u)) + 0u];
+                brow = _e83;
+                float _e85 = arow0_.x;
+                metal::float4 _e87 = brow;
+                metal::float4 _e88 = result_0_0_;
+                result_0_0_ = metal::fma(metal::float4(_e85), _e87, _e88);
+                float _e91 = arow1_.x;
+                metal::float4 _e93 = brow;
+                metal::float4 _e94 = result_0_1_;
+                result_0_1_ = metal::fma(metal::float4(_e91), _e93, _e94);
+                float _e97 = arow2_.x;
+                metal::float4 _e99 = brow;
+                metal::float4 _e100 = result_0_2_;
+                result_0_2_ = metal::fma(metal::float4(_e97), _e99, _e100);
+                float _e103 = arow3_.x;
+                metal::float4 _e105 = brow;
+                metal::float4 _e106 = result_0_3_;
+                result_0_3_ = metal::fma(metal::float4(_e103), _e105, _e106);
+                uint _e109 = k;
+                metal::float4 _e121 = B[((((_e109 * 4u) + 0u) * 256u) + (x * 2u)) + 1u];
+                brow = _e121;
+                float _e123 = arow0_.x;
+                metal::float4 _e125 = brow;
+                metal::float4 _e126 = result_1_0_;
+                result_1_0_ = metal::fma(metal::float4(_e123), _e125, _e126);
+                float _e129 = arow1_.x;
+                metal::float4 _e131 = brow;
+                metal::float4 _e132 = result_1_1_;
+                result_1_1_ = metal::fma(metal::float4(_e129), _e131, _e132);
+                float _e135 = arow2_.x;
+                metal::float4 _e137 = brow;
+                metal::float4 _e138 = result_1_2_;
+                result_1_2_ = metal::fma(metal::float4(_e135), _e137, _e138);
+                float _e141 = arow3_.x;
+                metal::float4 _e143 = brow;
+                metal::float4 _e144 = result_1_3_;
+                result_1_3_ = metal::fma(metal::float4(_e141), _e143, _e144);
+                uint _e147 = k;
+                metal::float4 _e159 = B[((((_e147 * 4u) + 1u) * 256u) + (x * 2u)) + 0u];
+                brow = _e159;
+                float _e161 = arow0_.y;
+                metal::float4 _e163 = brow;
+                metal::float4 _e164 = result_0_0_;
+                result_0_0_ = metal::fma(metal::float4(_e161), _e163, _e164);
+                float _e167 = arow1_.y;
+                metal::float4 _e169 = brow;
+                metal::float4 _e170 = result_0_1_;
+                result_0_1_ = metal::fma(metal::float4(_e167), _e169, _e170);
+                float _e173 = arow2_.y;
+                metal::float4 _e175 = brow;
+                metal::float4 _e176 = result_0_2_;
+                result_0_2_ = metal::fma(metal::float4(_e173), _e175, _e176);
+                float _e179 = arow3_.y;
+                metal::float4 _e181 = brow;
+                metal::float4 _e182 = result_0_3_;
+                result_0_3_ = metal::fma(metal::float4(_e179), _e181, _e182);
+                uint _e185 = k;
+                metal::float4 _e197 = B[((((_e185 * 4u) + 1u) * 256u) + (x * 2u)) + 1u];
+                brow = _e197;
+                float _e199 = arow0_.y;
+                metal::float4 _e201 = brow;
+                metal::float4 _e202 = result_1_0_;
+                result_1_0_ = metal::fma(metal::float4(_e199), _e201, _e202);
+                float _e205 = arow1_.y;
+                metal::float4 _e207 = brow;
+                metal::float4 _e208 = result_1_1_;
+                result_1_1_ = metal::fma(metal::float4(_e205), _e207, _e208);
+                float _e211 = arow2_.y;
+                metal::float4 _e213 = brow;
+                metal::float4 _e214 = result_1_2_;
+                result_1_2_ = metal::fma(metal::float4(_e211), _e213, _e214);
+                float _e217 = arow3_.y;
+                metal::float4 _e219 = brow;
+                metal::float4 _e220 = result_1_3_;
+                result_1_3_ = metal::fma(metal::float4(_e217), _e219, _e220);
+                uint _e223 = k;
+                metal::float4 _e235 = B[((((_e223 * 4u) + 2u) * 256u) + (x * 2u)) + 0u];
+                brow = _e235;
+                float _e237 = arow0_.z;
+                metal::float4 _e239 = brow;
+                metal::float4 _e240 = result_0_0_;
+                result_0_0_ = metal::fma(metal::float4(_e237), _e239, _e240);
+                float _e243 = arow1_.z;
+                metal::float4 _e245 = brow;
+                metal::float4 _e246 = result_0_1_;
+                result_0_1_ = metal::fma(metal::float4(_e243), _e245, _e246);
+                float _e249 = arow2_.z;
+                metal::float4 _e251 = brow;
+                metal::float4 _e252 = result_0_2_;
+                result_0_2_ = metal::fma(metal::float4(_e249), _e251, _e252);
+                float _e255 = arow3_.z;
+                metal::float4 _e257 = brow;
+                metal::float4 _e258 = result_0_3_;
+                result_0_3_ = metal::fma(metal::float4(_e255), _e257, _e258);
+                uint _e261 = k;
+                metal::float4 _e273 = B[((((_e261 * 4u) + 2u) * 256u) + (x * 2u)) + 1u];
+                brow = _e273;
+                float _e275 = arow0_.z;
+                metal::float4 _e277 = brow;
+                metal::float4 _e278 = result_1_0_;
+                result_1_0_ = metal::fma(metal::float4(_e275), _e277, _e278);
+                float _e281 = arow1_.z;
+                metal::float4 _e283 = brow;
+                metal::float4 _e284 = result_1_1_;
+                result_1_1_ = metal::fma(metal::float4(_e281), _e283, _e284);
+                float _e287 = arow2_.z;
+                metal::float4 _e289 = brow;
+                metal::float4 _e290 = result_1_2_;
+                result_1_2_ = metal::fma(metal::float4(_e287), _e289, _e290);
+                float _e293 = arow3_.z;
+                metal::float4 _e295 = brow;
+                metal::float4 _e296 = result_1_3_;
+                result_1_3_ = metal::fma(metal::float4(_e293), _e295, _e296);
+                uint _e299 = k;
+                metal::float4 _e311 = B[((((_e299 * 4u) + 3u) * 256u) + (x * 2u)) + 0u];
+                brow = _e311;
+                float _e313 = arow0_.w;
+                metal::float4 _e315 = brow;
+                metal::float4 _e316 = result_0_0_;
+                result_0_0_ = metal::fma(metal::float4(_e313), _e315, _e316);
+                float _e319 = arow1_.w;
+                metal::float4 _e321 = brow;
+                metal::float4 _e322 = result_0_1_;
+                result_0_1_ = metal::fma(metal::float4(_e319), _e321, _e322);
+                float _e325 = arow2_.w;
+                metal::float4 _e327 = brow;
+                metal::float4 _e328 = result_0_2_;
+                result_0_2_ = metal::fma(metal::float4(_e325), _e327, _e328);
+                float _e331 = arow3_.w;
+                metal::float4 _e333 = brow;
+                metal::float4 _e334 = result_0_3_;
+                result_0_3_ = metal::fma(metal::float4(_e331), _e333, _e334);
+                uint _e337 = k;
+                metal::float4 _e349 = B[((((_e337 * 4u) + 3u) * 256u) + (x * 2u)) + 1u];
+                brow = _e349;
+                float _e351 = arow0_.w;
+                metal::float4 _e353 = brow;
+                metal::float4 _e354 = result_1_0_;
+                result_1_0_ = metal::fma(metal::float4(_e351), _e353, _e354);
+                float _e357 = arow1_.w;
+                metal::float4 _e359 = brow;
+                metal::float4 _e360 = result_1_1_;
+                result_1_1_ = metal::fma(metal::float4(_e357), _e359, _e360);
+                float _e363 = arow2_.w;
+                metal::float4 _e365 = brow;
+                metal::float4 _e366 = result_1_2_;
+                result_1_2_ = metal::fma(metal::float4(_e363), _e365, _e366);
+                float _e369 = arow3_.w;
+                metal::float4 _e371 = brow;
+                metal::float4 _e372 = result_1_3_;
+                result_1_3_ = metal::fma(metal::float4(_e369), _e371, _e372);
+            }
+        }
+        metal::float4 _e389 = result_0_0_;
+        C[((x * 2u) + 0u) + (((y * 4u) + 0u) * 256u)] = _e389;
+        metal::float4 _e402 = result_0_1_;
+        C[((x * 2u) + 0u) + (((y * 4u) + 1u) * 256u)] = _e402;
+        metal::float4 _e415 = result_0_2_;
+        C[((x * 2u) + 0u) + (((y * 4u) + 2u) * 256u)] = _e415;
+        metal::float4 _e428 = result_0_3_;
+        C[((x * 2u) + 0u) + (((y * 4u) + 3u) * 256u)] = _e428;
+        metal::float4 _e441 = result_1_0_;
+        C[((x * 2u) + 1u) + (((y * 4u) + 0u) * 256u)] = _e441;
+        metal::float4 _e454 = result_1_1_;
+        C[((x * 2u) + 1u) + (((y * 4u) + 1u) * 256u)] = _e454;
+        metal::float4 _e467 = result_1_2_;
+        C[((x * 2u) + 1u) + (((y * 4u) + 2u) * 256u)] = _e467;
+        metal::float4 _e480 = result_1_3_;
+        C[((x * 2u) + 1u) + (((y * 4u) + 3u) * 256u)] = _e480;
+        return;
+    }

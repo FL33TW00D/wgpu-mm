@@ -116,6 +116,8 @@ async fn main() {
         .unwrap();
     tera.add_raw_template("gemm3.wgsl", include_str!("../shaders/gemm3.wgsl"))
         .unwrap();
+    tera.add_raw_template("gemm3_fma.wgsl", include_str!("../shaders/gemm3_fma.wgsl"))
+        .unwrap();
     tera.add_raw_template("chonk.wgsl", include_str!("../shaders/chonk.wgsl"))
         .unwrap();
     tera.add_raw_template("chonk2.wgsl", include_str!("../shaders/chonk2.wgsl"))
@@ -138,10 +140,12 @@ async fn main() {
     context.insert("workgroup_size_y", &8);
     context.insert("workgroup_size_z", &1);
 
-    let workgroup_count = WorkgroupCount(16, 16, 1);
+    //gemm3
+    let workgroup_count = WorkgroupCount((N / 64) as u32, (M / 32) as u32, 1);
+    //bram
     //let workgroup_count = WorkgroupCount(128, 32, 1);
 
-    let shader = tera.render("chonk2.wgsl", &context).unwrap();
+    let shader = tera.render("gemm3_fma.wgsl", &context).unwrap();
     println!("{}", shader);
 
     let shader_module = unsafe {
