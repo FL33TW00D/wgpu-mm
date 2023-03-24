@@ -17,33 +17,33 @@ fn main(
     let KD = {{ K / 4 }}u;
     let ND = {{ N / 4 }}u;
         
-    {% for x_coord in range(end=B_TILE_N) -%}
-        {% for y_coord in range(end=B_TILE_K) -%}
-            var result{{ x_coord }}_{{ y_coord }}: vec4<f32> = vec4<f32>();
+    {% for bx in range(end=B_TILE_X) -%}
+        {% for by in range(end=B_TILE_Y) -%}
+            var result{{ bx }}_{{ by }}: vec4<f32> = vec4<f32>();
         {% endfor %}
     {% endfor %}
 
     for(var k: u32 = 0u; k < KD; k = k + 1u){
-        {% for x_coord in range(end=A_TILE_K) -%} //don't support A_TILE_K > 1
-            {% for y_coord in range(end=A_TILE_M) -%}
-                var a{{ x_coord }}_{{ y_coord }} = A[(y * 4u + {{ y_coord }}u) * KD + k + {{ x_coord }}u * 4u];
+        {% for ax in range(end=A_TILE_X) -%} //don't support A_TILE_K > 1
+            {% for ay in range(end=A_TILE_Y) -%}
+                var a{{ ax }}_{{ ay }} = A[(y * 4u + {{ ay }}u) * KD + k + {{ ax }}u * 4u];
             {% endfor %}    
         {% endfor %}
         var brow: vec4<f32>;
 
         {% for component_idx in range(end=4) -%}
-            {% for x_coord in range(end=B_TILE_N) -%}
-                brow = B[(k * 4u + {{ component_idx }}u) * ND + x * {{ B_TILE_N }}u + {{ x_coord }}u];
-                {% for y_coord in range(end=B_TILE_K) -%}
-                    result{{ x_coord }}_{{ y_coord }} = fma(vec4<f32>(a0_{{ y_coord }}.{{ components[component_idx] }}), brow, result{{ x_coord }}_{{ y_coord }});
+            {% for bx in range(end=B_TILE_X) -%}
+                brow = B[(k * 4u + {{ component_idx }}u) * ND + x * {{ B_TILE_X }}u + {{ bx }}u];
+                {% for by in range(end=B_TILE_Y) -%}
+                    result{{ bx }}_{{ by }} = fma(vec4<f32>(a0_{{ by }}.{{ components[component_idx] }}), brow, result{{ bx }}_{{ by }});
                 {% endfor %}
             {% endfor %}
         {% endfor %}
     }
 
-    {% for x_coord in range(end=B_TILE_N) -%}
-        {% for y_coord in range(end=B_TILE_K) -%}
-            C[x * {{ B_TILE_N }}u + {{ x_coord }}u + (y * 4u + {{ y_coord }}u) * ND] = result{{ x_coord }}_{{ y_coord }};
+    {% for bx in range(end=B_TILE_X) -%}
+        {% for by in range(end=B_TILE_Y) -%}
+            C[x * {{ B_TILE_X }}u + {{ bx }}u + (y * 4u + {{ by }}u) * ND] = result{{ bx }}_{{ by }};
         {% endfor %}
     {% endfor %}
 }
