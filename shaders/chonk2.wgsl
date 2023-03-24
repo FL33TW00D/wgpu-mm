@@ -26,7 +26,7 @@ fn main(
     for(var k: u32 = 0u; k < KD; k = k + 1u){
         {% for x_coord in range(end=A_TILE_K) -%} //don't support A_TILE_K > 1
             {% for y_coord in range(end=A_TILE_M) -%}
-                var a{{ x_coord }}_{{ y_coord }} = A[(y * 4u + {{ y_coord }}u) * KD + k];
+                var a{{ x_coord }}_{{ y_coord }} = A[(y * 4u + {{ y_coord }}u) * KD + k + {{ x_coord }}u * 4u];
             {% endfor %}    
         {% endfor %}
         var brow: vec4<f32>;

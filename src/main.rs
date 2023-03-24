@@ -128,9 +128,9 @@ async fn main() {
     context.insert("N", &N);
     context.insert("K", &K);
 
-    let B_TILE_N = 2;
+    let B_TILE_N = 8 / 4;
     let B_TILE_K = 4;
-    let A_TILE_K = 1;
+    let A_TILE_K = 4 / 4;
     let A_TILE_M = 4;
     context.insert("B_TILE_N", &B_TILE_N);
     context.insert("B_TILE_K", &B_TILE_K);
@@ -141,12 +141,12 @@ async fn main() {
     let n_blocks = Workload::ceil(M * N, 4 * 4);
     let (x_count, x_size) = Workload::compute_dim(n_blocks, WorkloadDim::X);
 
-    context.insert("workgroup_size_x", &4);
+    context.insert("workgroup_size_x", &8);
     context.insert("workgroup_size_y", &8);
     context.insert("workgroup_size_z", &1);
 
     //gemm3
-    let workgroup_count = WorkgroupCount((N / 32) as u32, (M / 32) as u32, 1);
+    let workgroup_count = WorkgroupCount((N / 64) as u32, (M / 32) as u32, 1);
     //bram
     //let workgroup_count = WorkgroupCount(128, 32, 1);
 
