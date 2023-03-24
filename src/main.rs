@@ -118,8 +118,6 @@ async fn main() {
         .unwrap();
     tera.add_raw_template("gemm3_fma.wgsl", include_str!("../shaders/gemm3_fma.wgsl"))
         .unwrap();
-    tera.add_raw_template("chonk.wgsl", include_str!("../shaders/chonk.wgsl"))
-        .unwrap();
     tera.add_raw_template("chonk2.wgsl", include_str!("../shaders/chonk2.wgsl"))
         .unwrap();
 
