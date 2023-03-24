@@ -128,24 +128,29 @@ async fn main() {
     context.insert("N", &N);
     context.insert("K", &K);
 
-    let TILE_X = 4;
-    let TILE_Y = 4;
-    context.insert("TILE_X", &TILE_X);
-    context.insert("TILE_Y", &TILE_Y);
+    let B_TILE_X = 2;
+    let B_TILE_Y = 4;
+    let A_TILE_X = 1;
+    let A_TILE_Y = 4;
+    context.insert("B_TILE_X", &B_TILE_X);
+    context.insert("B_TILE_Y", &B_TILE_Y);
+    context.insert("A_TILE_X", &A_TILE_X);
+    context.insert("A_TILE_Y", &A_TILE_Y);
+    context.insert("components", &['x', 'y', 'z', 'w']);
 
     let n_blocks = Workload::ceil(M * N, 4 * 4);
     let (x_count, x_size) = Workload::compute_dim(n_blocks, WorkloadDim::X);
 
-    context.insert("workgroup_size_x", &8);
+    context.insert("workgroup_size_x", &4);
     context.insert("workgroup_size_y", &8);
     context.insert("workgroup_size_z", &1);
 
     //gemm3
-    let workgroup_count = WorkgroupCount((N / 64) as u32, (M / 32) as u32, 1);
+    let workgroup_count = WorkgroupCount((N / 32) as u32, (M / 32) as u32, 1);
     //bram
     //let workgroup_count = WorkgroupCount(128, 32, 1);
 
-    let shader = tera.render("gemm3_fma.wgsl", &context).unwrap();
+    let shader = tera.render("chonk2.wgsl", &context).unwrap();
     println!("{}", shader);
 
     let shader_module = unsafe {
