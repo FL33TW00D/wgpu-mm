@@ -9,9 +9,9 @@ All credits to him.
 
 The M1 8 core GPU can supposedly hit 2.6 TFLOPS of FP32.
 
-Our baseline from [WONNX](https://github.com/webonnx/wonnx) hits 400GFLOPS currently or ~15% of peak. This kernel is `gemm.wgsl`.
+Our baseline from [WONNX](https://github.com/webonnx/wonnx) hits 400GFLOPS currently or ~15% of peak (`gemm.wgsl`).
 
-In [this post](https://jott.live/markdown/m1_webgpu_perf), Bram his ~900GFLOPS or ~35% of theoretical peak without using SIMD
+In [this post](https://jott.live/markdown/m1_webgpu_perf), Bram hits ~900GFLOPS or ~35% of theoretical peak without using SIMD
 group magic, so this seems like the one to beat.
 
 Implementing the code from Bram's blogpost, we can see it holds up with approx ~860GFLOPs (using `create_shader_module_unchecked` which removes all bounds checking). With bounds checking we get 580GFLOPS.
