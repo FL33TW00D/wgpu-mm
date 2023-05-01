@@ -1,8 +1,10 @@
+import os
+os.environ["METAL"] = "1"
 import numpy as np
 from tinygrad.helpers import dtypes, getenv
 from tinygrad.runtime.ops_metal import RawMetalBuffer, MetalProgram
 
-N = getenv("N", 1024)
+N = getenv("N", 2048)
 
 a = RawMetalBuffer(N*N, dtypes.float32)
 
@@ -12,7 +14,7 @@ b = RawMetalBuffer.fromCPU(nb)
 c = RawMetalBuffer.fromCPU(nc)
 
 FLOPS = N*N*N*2
-BW = N*N*3
+BW = N*N*3*4
 
 prog = MetalProgram("test", f"""
 #include <metal_stdlib>
@@ -22,27 +24,6 @@ kernel void test(device float *a, device const float *data1, device const float 
   a += gid.y * 32 * {N} + gid.z * 32;
   data1 += gid.y * 32 * {N};
   data2 += gid.z * 32;
-  /*a += xid.y * 32 * {N} + xid.z * 32;
-  data1 += xid.y * 32 * {N};
-  data2 += xid.z * 32;*/
-  // 1-2 simd groups
-  //uint idx = gid.x/32;
-  //uint pos_x = (idx%{N//32}) * 32;
-  //uint pos_y = (idx/{N//32}) * 32;
-  // 4 simd groups
-  //uint idx = gid.x/128;
-  //int pos_x = (idx%{N//64}) * 64;
-  //int pos_y = (idx/{N//64}) * 64;
-  //pos_x += (sidx%2) * 32;
-  //pos_y += (sidx/2) * 32;
-  //uint pos_x = gid.y * 32;
-  //uint pos_y = gid.z * 32;
-  // 16 simd groups (slow)
-  /*uint idx = gid.x/512;
-  uint pos_x = (idx%{N//128}) * 128;
-  uint pos_y = (idx/{N//128}) * 128;
-  pos_x += (sidx%4) * 32;
-  pos_y += (sidx/4) * 32;*/
   simdgroup_float8x8 acc[4][4];
   for (uint i = 0; i < 4; i++) {{
     for (uint j = 0; j < 4; j++) {{
@@ -51,8 +32,8 @@ kernel void test(device float *a, device const float *data1, device const float 
   }}
   simdgroup_float8x8 A[4];
   simdgroup_float8x8 B[4];
-  for (int k = 0; k < {N}; k+=8) {{
-    //threadgroup_barrier(mem_flags::mem_threadgroup);
+  for (uint k = 0; k < {N}; k+=8) {{
+    threadgroup_barrier(mem_flags::mem_threadgroup);
     simdgroup_load(A[0], data1+k+{0*N}, {N}, ulong2(0, 0));
     simdgroup_load(A[1], data1+k+{8*N}, {N}, ulong2(0, 0));
     simdgroup_load(A[2], data1+k+{16*N}, {N}, ulong2(0, 0));
@@ -94,21 +75,41 @@ kernel void test(device float *a, device const float *data1, device const float 
   simdgroup_store(acc[1][3], a+{8+24*N}, {N}, ulong2(0, 0));
   simdgroup_store(acc[2][3], a+{16+24*N}, {N}, ulong2(0, 0));
   simdgroup_store(acc[3][3], a+{24+24*N}, {N}, ulong2(0, 0));
-  /*for (uint i = 0; i < 4; i++) {{
-    for (uint j = 0; j < 4; j++) {{
-      simdgroup_store(acc[i][j], a, {N}, ulong2(pos_y+i*8, pos_x+j*8));
-    }}
-  }}*/
 }}""")
-
-#tms = [prog([32, N//(8*4), N//(8*4)], [32, 1, 1], a, b, c, wait=True) for _ in range(20)]
-tm = min([prog([32, N//(8*4), N//(8*4)], [32, 1, 1], a, b, c, wait=True) for _ in range(20)])
-#tm = min([prog([N*N//(2*4*4)], [4*32], a, b, c, wait=True) for _ in range(20)])
+tm = min([prog([32, N//(8*4), N//(8*4)], [32, 1, 4], a, b, c, wait=True) for _ in range(20)])
 na = a.toCPU().reshape(N,N)
 comp = nb@nc
 if N <= 32:
   print(na)
   print(comp)
-print(f"{N*N:10d} {tm*1e6:9.2f} us, would be {FLOPS*1e-9/tm:.2f} GFLOPS matmul, {BW*1e-9/tm:.2f} GB/s")
+print(f"{N*N:10d} {tm*1e6:9.2f} us, would be {FLOPS*1e-9/tm:9.2f} GFLOPS matmul, {BW*1e-9/tm:.2f} GB/s")
 np.testing.assert_allclose(na, comp, atol=1e-3)
 
+import time, torch, torch.mps
+b = torch.from_numpy(nb).to('mps')
+c = torch.from_numpy(nc).to('mps')
+
+def torch_prog(b, c):
+  st = time.perf_counter()
+  a = b@c
+  torch.mps.synchronize()
+  return time.perf_counter() - st
+tm = min([torch_prog(b, c) for _ in range(20)])
+print(f"{N*N:10d} {tm*1e6:9.2f} us, would be {FLOPS*1e-9/tm:9.2f} GFLOPS matmul in torch")
+
+from tinygrad.tensor import Tensor
+from tinygrad.jit import TinyJit
+from tinygrad.runtime.ops_metal import METAL
+b = Tensor(nb)
+c = Tensor(nb)
+# TODO: slowness without the JIT I suspect comes from a lack of a caching allocator
+@TinyJit
+def tiny_jit(b, c):
+  return (b@c).realize()
+def tiny_prog(b, c):
+  st = time.perf_counter()
+  a = tiny_jit(b, c)
+  METAL.synchronize()
+  return time.perf_counter() - st
+tm = min([tiny_prog(b, c) for _ in range(20)])
+print(f"{N*N:10d} {tm*1e6:9.2f} us, would be {FLOPS*1e-9/tm:9.2f} GFLOPS matmul in tinygrad")
