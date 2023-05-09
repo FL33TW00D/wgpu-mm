@@ -1,8 +1,11 @@
+#[derive(Debug)]
 pub struct WorkgroupCount(pub u32, pub u32, pub u32); //Analagous to gridDim in CUDA
+#[derive(Debug)]
 pub struct WorkgroupSize(pub u32, pub u32, pub u32); //Analagous to blockDim in CUDA
 
 ///The Workload represents the entire piece of work.
 ///For more read: https://surma.dev/things/webgpu/
+#[derive(Debug)]
 pub struct Workload {
     count: WorkgroupCount,
     size: WorkgroupSize,

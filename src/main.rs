@@ -119,11 +119,17 @@ async fn main() {
         include_str!("../shaders/kernels/kernel_2.wgsl"),
     )
     .unwrap();
+    tera.add_raw_template(
+        "kernel_3.wgsl",
+        include_str!("../shaders/kernels/kernel_3.wgsl"),
+    )
+    .unwrap();
 
     let mut context = Context::new();
     context.insert("M", &M);
     context.insert("N", &N);
     context.insert("K", &K);
+    context.insert("BLOCKSIZE", &16);
 
     let workgroup_size_x = 256;
     let workgroup_size_y = 1;
@@ -133,11 +139,12 @@ async fn main() {
         WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
         WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
     );
+    println!("Workload: {:?}", workload);
     context.insert("workgroup_size_x", &workgroup_size_x);
     context.insert("workgroup_size_y", &workgroup_size_y);
     context.insert("workgroup_size_z", &workgroup_size_z);
 
-    let shader = tera.render("kernel_2.wgsl", &context).unwrap();
+    let shader = tera.render("kernel_3.wgsl", &context).unwrap();
     println!("{}", shader);
 
     let shader_module = unsafe {
