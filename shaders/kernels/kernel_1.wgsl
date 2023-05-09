@@ -23,6 +23,6 @@ fn main(
         for (var i = 0u; i < K; i = i + 1u) {
           tmp += A[x * K + i] * B[i * N + y];
         }
-        C[x * N + y] = {{ alpha }}f * tmp + {{ beta }}f * C[x * N + y];
+        C[x * N + y] = tmp; 
     }
 }
