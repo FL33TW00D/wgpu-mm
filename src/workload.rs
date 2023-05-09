@@ -40,7 +40,7 @@ impl Workload {
     pub const MAX_COMPUTE_WORKGROUPS_PER_DIMENSION: usize = 65535;
 
     pub fn ceil(num: usize, div: usize) -> usize {
-        num / div + (num % div != 0) as usize
+        (num + div - 1) / div
     }
 
     ///Given a number of work items that need to be processed

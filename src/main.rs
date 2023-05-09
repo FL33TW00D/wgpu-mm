@@ -124,27 +124,42 @@ async fn main() {
         include_str!("../shaders/kernels/kernel_3.wgsl"),
     )
     .unwrap();
+    tera.add_raw_template(
+        "kernel_4.wgsl",
+        include_str!("../shaders/kernels/kernel_4.wgsl"),
+    )
+    .unwrap();
 
     let mut context = Context::new();
     context.insert("M", &M);
     context.insert("N", &N);
     context.insert("K", &K);
+    //cuda vars
     context.insert("BLOCKSIZE", &16);
+    let BM = 16;
+    let BN = 16;
+    let BK = 8;
+    let TM = 8;
 
-    let workgroup_size_x = 256;
+    context.insert("BM", &BM);
+    context.insert("BN", &BN);
+    context.insert("BK", &BK);
+    context.insert("TM", &TM);
+
+    let workgroup_size_x = (BM * BN) / TM;
     let workgroup_size_y = 1;
     let workgroup_size_z = 1;
 
     let workload = Workload::new(
-        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
-        WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
+        WorkgroupCount(Workload::ceil(N, BN) as _, Workload::ceil(M, BM) as _, 1),
+        WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
     );
     println!("Workload: {:?}", workload);
     context.insert("workgroup_size_x", &workgroup_size_x);
     context.insert("workgroup_size_y", &workgroup_size_y);
     context.insert("workgroup_size_z", &workgroup_size_z);
 
-    let shader = tera.render("kernel_3.wgsl", &context).unwrap();
+    let shader = tera.render("kernel_4.wgsl", &context).unwrap();
     println!("{}", shader);
 
     let shader_module = unsafe {
