@@ -51,8 +51,12 @@ pub async fn check(
         true
     } else {
         println!("fail! max diff: {}", max_diff);
-        println!("GPU: {:?}", &gpu_out[..32]);
-        println!("CPU: {:?}", &C_cpu[..32]);
+        println!(
+            "GPU\n{:?}\n...\n{:?}",
+            &gpu_out[..16],
+            &gpu_out[M * N - 16..]
+        );
+        println!("CPU\n{:?}\n...\n{:?}", &C_cpu[..16], &C_cpu[M * N - 16..]);
         false
     }
 }
@@ -110,16 +114,19 @@ async fn main() {
         include_str!("../shaders/kernels/kernel_1.wgsl"),
     )
     .unwrap();
+    tera.add_raw_template(
+        "kernel_2.wgsl",
+        include_str!("../shaders/kernels/kernel_2.wgsl"),
+    )
+    .unwrap();
 
     let mut context = Context::new();
     context.insert("M", &M);
     context.insert("N", &N);
     context.insert("K", &K);
-    context.insert("alpha", &1.0);
-    context.insert("beta", &0.0);
 
-    let workgroup_size_x = 16;
-    let workgroup_size_y = 16;
+    let workgroup_size_x = 256;
+    let workgroup_size_y = 1;
     let workgroup_size_z = 1;
 
     let workload = Workload::new(
@@ -130,7 +137,8 @@ async fn main() {
     context.insert("workgroup_size_y", &workgroup_size_y);
     context.insert("workgroup_size_z", &workgroup_size_z);
 
-    let shader = tera.render("kernel_1.wgsl", &context).unwrap();
+    let shader = tera.render("kernel_2.wgsl", &context).unwrap();
+    println!("{}", shader);
 
     let shader_module = unsafe {
         device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
