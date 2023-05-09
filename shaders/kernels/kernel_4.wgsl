@@ -1,4 +1,5 @@
-//Naive matrix multiplication
+//Kernel 4: 1D Blocktiling for Calculating Multiple Results per Thread
+//https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/4_kernel_1D_blocktiling.cuh
 @group(0) @binding(0)
 var<storage, read> A: array<f32>;
 

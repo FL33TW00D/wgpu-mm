@@ -1,4 +1,5 @@
-//Naive matrix multiplication
+//Kernel 2: Global Memory Coalescing
+//https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/2_kernel_global_mem_coalesce.cuh
 @group(0) @binding(0)
 var<storage, read> A: array<f32>;
 

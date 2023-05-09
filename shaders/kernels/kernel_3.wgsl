@@ -1,4 +1,5 @@
-//Naive matrix multiplication
+//Kernel 3: Shared Memory Cache-Blocking
+//https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/3_kernel_shared_mem_blocking.cuh
 @group(0) @binding(0)
 var<storage, read> A: array<f32>;
 
