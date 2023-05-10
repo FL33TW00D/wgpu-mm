@@ -5,7 +5,7 @@ use num_traits::Float;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use tera::{Context, Tera};
 use wgpu::{util::DeviceExt, InstanceDescriptor};
-use wgpu_mm::{WorkgroupCount, Workload, WorkloadDim};
+use wgpu_mm::{WorkgroupCount, WorkgroupSize, Workload};
 
 const M: usize = 1024;
 const N: usize = 1024;
@@ -51,8 +51,12 @@ pub async fn check(
         true
     } else {
         println!("fail! max diff: {}", max_diff);
-        println!("GPU: {:?}", &gpu_out[..32]);
-        println!("CPU: {:?}", &C_cpu[..32]);
+        println!(
+            "GPU\n{:?}\n...\n{:?}",
+            &gpu_out[..16],
+            &gpu_out[M * N - 16..]
+        );
+        println!("CPU\n{:?}\n...\n{:?}", &C_cpu[..16], &C_cpu[M * N - 16..]);
         false
     }
 }
@@ -99,6 +103,77 @@ where
     }
 }
 
+fn kernel_1(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
+    let workgroup_size_x = 16;
+    let workgroup_size_y = 16;
+    let workgroup_size_z = 1;
+    let workload = Workload::new(
+        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
+        WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
+    );
+    context.insert("workgroup_size_x", &workload.size().0);
+    context.insert("workgroup_size_y", &workload.size().1);
+    context.insert("workgroup_size_z", &workload.size().2);
+    let shader = tera.render("kernel_1.wgsl", &context).unwrap();
+    (workload, shader)
+}
+
+fn kernel_2(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
+    let workgroup_size_x = 256;
+    let workgroup_size_y = 1;
+    let workgroup_size_z = 1;
+    let workload = Workload::new(
+        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
+        WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
+    );
+    context.insert("workgroup_size_x", &workload.size().0);
+    context.insert("workgroup_size_y", &workload.size().1);
+    context.insert("workgroup_size_z", &workload.size().2);
+    let shader = tera.render("kernel_2.wgsl", &context).unwrap();
+    (workload, shader)
+}
+
+fn kernel_3(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
+    context.insert("BLOCKSIZE", &16);
+    let workgroup_size_x = 256;
+    let workgroup_size_y = 1;
+    let workgroup_size_z = 1;
+    let workload = Workload::new(
+        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
+        WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
+    );
+    context.insert("workgroup_size_x", &workload.size().0);
+    context.insert("workgroup_size_y", &workload.size().1);
+    context.insert("workgroup_size_z", &workload.size().2);
+    let shader = tera.render("kernel_3.wgsl", &context).unwrap();
+    (workload, shader)
+}
+
+fn kernel_4(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
+    let BM = 16;
+    let BN = 16;
+    let BK = 8;
+    let TM = 8;
+
+    context.insert("BM", &BM);
+    context.insert("BN", &BN);
+    context.insert("BK", &BK);
+    context.insert("TM", &TM);
+
+    let workgroup_size_x = (BM * BN) / TM;
+    let workgroup_size_y = 1;
+    let workgroup_size_z = 1;
+    let workload = Workload::new(
+        WorkgroupCount(Workload::ceil(N, BN) as _, Workload::ceil(M, BM) as _, 1),
+        WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
+    );
+    context.insert("workgroup_size_x", &workload.size().0);
+    context.insert("workgroup_size_y", &workload.size().1);
+    context.insert("workgroup_size_z", &workload.size().2);
+    let shader = tera.render("kernel_4.wgsl", &context).unwrap();
+    (workload, shader)
+}
+
 #[tokio::main]
 async fn main() {
     let _ = env_logger::builder().try_init();
@@ -106,33 +181,35 @@ async fn main() {
     let (device, queue) = gpu_handle().await;
     let mut tera = Tera::default();
     tera.add_raw_template(
-        "gemm_macro.wgsl",
-        include_str!("../shaders/gemm_macro.wgsl"),
+        "kernel_1.wgsl",
+        include_str!("../shaders/kernels/kernel_1.wgsl"),
     )
     .unwrap();
-    tera.add_raw_template("gemm.wgsl", include_str!("../shaders/gemm.wgsl"))
-        .unwrap();
-    tera.add_raw_template("gemm2.wgsl", include_str!("../shaders/bram.wgsl"))
-        .unwrap();
-    tera.add_raw_template("gemm3.wgsl", include_str!("../shaders/gemm3.wgsl"))
-        .unwrap();
+    tera.add_raw_template(
+        "kernel_2.wgsl",
+        include_str!("../shaders/kernels/kernel_2.wgsl"),
+    )
+    .unwrap();
+    tera.add_raw_template(
+        "kernel_3.wgsl",
+        include_str!("../shaders/kernels/kernel_3.wgsl"),
+    )
+    .unwrap();
+    tera.add_raw_template(
+        "kernel_4.wgsl",
+        include_str!("../shaders/kernels/kernel_4.wgsl"),
+    )
+    .unwrap();
 
     let mut context = Context::new();
     context.insert("M", &M);
     context.insert("N", &N);
     context.insert("K", &K);
 
-    let n_blocks = Workload::ceil(M * N, 4 * 4);
-    let (x_count, x_size) = Workload::compute_dim(n_blocks, WorkloadDim::X);
-
-    context.insert("workgroup_size_x", &8);
-    context.insert("workgroup_size_y", &8);
-    context.insert("workgroup_size_z", &1);
-
-    let workgroup_count = WorkgroupCount((N / 64) as u32, (M / 32) as u32, 1);
-    //let workgroup_count = WorkgroupCount(128, 32, 1);
-
-    let shader = tera.render("gemm3.wgsl", &context).unwrap();
+    //let (workload, shader) = kernel_1(&mut tera, &mut context);
+    //let (workload, shader) = kernel_2(&mut tera, &mut context);
+    //let (workload, shader) = kernel_3(&mut tera, &mut context);
+    let (workload, shader) = kernel_4(&mut tera, &mut context);
 
     let shader_module = unsafe {
         device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
@@ -148,7 +225,7 @@ async fn main() {
         entry_point: "main",
     });
 
-    if !check(&device, &queue, &pipeline, &workgroup_count).await {
+    if !check(&device, &queue, &pipeline, &workload.count()).await {
         panic!("Matrix multiplication does not match reference implementation");
     } else {
         println!("Matrix multiplication matches reference implementation");
@@ -160,31 +237,31 @@ async fn main() {
 
     //warmup
     queue.submit(vec![
-        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
-        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
-        mm(&device, &pipeline, &A, &C, &B, &workgroup_count),
-        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
-        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
-        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
-        mm(&device, &pipeline, &A, &C, &B, &workgroup_count),
-        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
+        mm(&device, &pipeline, &A, &B, &C, &workload.count()),
+        mm(&device, &pipeline, &C, &B, &A, &workload.count()),
+        mm(&device, &pipeline, &A, &C, &B, &workload.count()),
+        mm(&device, &pipeline, &B, &A, &C, &workload.count()),
+        mm(&device, &pipeline, &A, &B, &C, &workload.count()),
+        mm(&device, &pipeline, &C, &B, &A, &workload.count()),
+        mm(&device, &pipeline, &A, &C, &B, &workload.count()),
+        mm(&device, &pipeline, &B, &A, &C, &workload.count()),
     ]);
 
     let _warmup_res = to_cpu(&C, &device, &queue).await;
 
     let start = Instant::now();
     queue.submit(vec![
-        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
-        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
-        mm(&device, &pipeline, &A, &C, &B, &workgroup_count),
-        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
-        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
-        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
-        mm(&device, &pipeline, &A, &C, &B, &workgroup_count),
-        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
-        mm(&device, &pipeline, &A, &B, &C, &workgroup_count),
-        mm(&device, &pipeline, &B, &A, &C, &workgroup_count),
-        mm(&device, &pipeline, &C, &B, &A, &workgroup_count),
+        mm(&device, &pipeline, &A, &B, &C, &workload.count()),
+        mm(&device, &pipeline, &C, &B, &A, &workload.count()),
+        mm(&device, &pipeline, &A, &C, &B, &workload.count()),
+        mm(&device, &pipeline, &B, &A, &C, &workload.count()),
+        mm(&device, &pipeline, &A, &B, &C, &workload.count()),
+        mm(&device, &pipeline, &C, &B, &A, &workload.count()),
+        mm(&device, &pipeline, &A, &C, &B, &workload.count()),
+        mm(&device, &pipeline, &B, &A, &C, &workload.count()),
+        mm(&device, &pipeline, &A, &B, &C, &workload.count()),
+        mm(&device, &pipeline, &B, &A, &C, &workload.count()),
+        mm(&device, &pipeline, &C, &B, &A, &workload.count()),
     ]);
 
     let _result = to_cpu(&C, &device, &queue).await;
