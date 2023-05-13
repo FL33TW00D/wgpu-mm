@@ -3,11 +3,11 @@ use std::{borrow::Cow, time::Instant};
 
 use num_traits::Float;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
-use tera::{Context, Tera};
 use wgpu::{util::DeviceExt, InstanceDescriptor};
-use wgpu_mm::{gemm, WorkgroupCount};
 
-pub fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32], dims: (usize, usize, usize)) {
+use crate::{WorkgroupCount, Workload};
+
+fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32], dims: (usize, usize, usize)) {
     let (M, N, K) = dims;
     for m in 0..M {
         for n in 0..N {
@@ -20,7 +20,7 @@ pub fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32], dims: (usize, usize, usize)) 
     }
 }
 
-pub async fn check(
+async fn check(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     pipeline: &wgpu::ComputePipeline,
@@ -60,7 +60,7 @@ pub async fn check(
     }
 }
 
-pub async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
+async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or(wgpu::Backends::PRIMARY);
 
     let instance = wgpu::Instance::new(InstanceDescriptor {
@@ -76,7 +76,7 @@ pub async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
         .expect("Could not create adapter for GPU device")
 }
 
-pub fn rand_gpu_buffer<F: Float + bytemuck::Pod>(
+fn rand_gpu_buffer<F: Float + bytemuck::Pod>(
     device: &wgpu::Device,
     numel: usize,
     return_cpu: bool,
@@ -102,40 +102,9 @@ where
     }
 }
 
-#[tokio::main]
-async fn main() {
-    let _ = env_logger::builder().try_init();
-
+pub async fn test_harness(workload: Workload, shader: String, dims: (usize, usize, usize)) {
     let (device, queue) = gpu_handle().await;
-    let mut tera = Tera::default();
-    tera.add_raw_template(
-        "kernel_1.wgsl",
-        include_str!("../shaders/kernels/kernel_1.wgsl"),
-    )
-    .unwrap();
-    tera.add_raw_template(
-        "kernel_2.wgsl",
-        include_str!("../shaders/kernels/kernel_2.wgsl"),
-    )
-    .unwrap();
-    tera.add_raw_template(
-        "kernel_3.wgsl",
-        include_str!("../shaders/kernels/kernel_3.wgsl"),
-    )
-    .unwrap();
-    tera.add_raw_template(
-        "kernel_4.wgsl",
-        include_str!("../shaders/kernels/kernel_4.wgsl"),
-    )
-    .unwrap();
-
-    let mut context = Context::new();
-    let (M, N, K) = gemm::insert_matrix_dims(&mut context);
-
-    //let (workload, shader) = gemm::kernel_1(&mut tera, &mut context);
-    //let (workload, shader) = gemm::kernel_2(&mut tera, &mut context);
-    //let (workload, shader) = gemm::kernel_3(&mut tera, &mut context);
-    let (workload, shader) = gemm::kernel_4(&mut tera, &mut context);
+    let (M, N, K) = dims;
 
     let shader_module = unsafe {
         device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
@@ -201,7 +170,7 @@ async fn main() {
     println!("{} GFLOPS", gflops);
 }
 
-pub fn mm(
+fn mm(
     device: &wgpu::Device,
     pipeline: &wgpu::ComputePipeline,
     A: &wgpu::Buffer,
@@ -240,7 +209,7 @@ pub fn mm(
     encoder.finish()
 }
 
-pub async fn to_cpu(buffer: &wgpu::Buffer, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<f32> {
+async fn to_cpu(buffer: &wgpu::Buffer, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<f32> {
     let buffer_slice = buffer.slice(..);
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
 
