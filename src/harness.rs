@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 use std::{borrow::Cow, time::Instant};
 
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float, PrimInt};
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use wgpu::{util::DeviceExt, InstanceDescriptor};
 
@@ -28,9 +28,21 @@ async fn check(
     dims: (usize, usize, usize),
 ) -> bool {
     let (M, N, K) = dims;
-    let (A, A_cpu) = rand_gpu_buffer::<f32>(&device, M * K, true);
-    let (B, B_cpu) = rand_gpu_buffer::<f32>(&device, K * N, true);
-    let (C, C_cpu) = rand_gpu_buffer::<f32>(&device, M * N, true);
+    let BufferResult {
+        gpu_buf: A,
+        cpu_buf: A_cpu,
+        ..
+    } = rand_gpu_buffer::<f32>(&device, M * K, true, false);
+    let BufferResult {
+        gpu_buf: B,
+        cpu_buf: B_cpu,
+        ..
+    } = rand_gpu_buffer::<f32>(&device, K * N, true, false);
+    let BufferResult {
+        gpu_buf: C,
+        cpu_buf: C_cpu,
+        ..
+    } = rand_gpu_buffer::<f32>(&device, M * N, true, false);
     let mut C_cpu = C_cpu.unwrap();
 
     mm_ref(&A_cpu.unwrap(), &B_cpu.unwrap(), &mut C_cpu, dims);
@@ -78,40 +90,67 @@ async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
 
 #[derive(derive_new::new)]
 struct BufferResult<F: Float + bytemuck::Pod> {
-    buffer: wgpu::Buffer,
-    cpu_buffer: Option<Vec<F>>,
+    gpu_buf: wgpu::Buffer,
+    cpu_buf: Option<Vec<F>>,
     absmax: Option<F>,
 }
 
-fn rand_gpu_buffer<F: Float + bytemuck::Pod>(
+fn sint8_quantize<F: Float + AsPrimitive<u32>>(matrix: &[F], M: usize, N: usize) -> (Vec<u32>, F) {
+    let block_size = 4;
+    let mut quantized_matrix = vec![0u32; M * (N / block_size)];
+
+    let absmax = matrix.iter().fold(F::zero(), |acc, &x| acc.max(x.abs()));
+    let sf = F::from(127).unwrap();
+
+    for i in 0..M {
+        for j in (0..N).step_by(block_size) {
+            let packed_value = ((matrix[i * N + j] / absmax * sf).round().as_() & 0xFF)
+                | (((matrix[i * N + j + 1] / absmax * sf).round().as_() & 0xFF) << 8)
+                | (((matrix[i * N + j + 2] / absmax * sf).round().as_() & 0xFF) << 16)
+                | (((matrix[i * N + j + 3] / absmax * sf).round().as_() & 0xFF) << 24);
+            quantized_matrix[i * (N / block_size) + (j / block_size)] = packed_value;
+        }
+    }
+    (quantized_matrix, absmax)
+}
+
+fn rand_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<u32>>(
     device: &wgpu::Device,
-    numel: usize,
+    dims: (usize, usize),
     return_cpu: bool,
     quantize: bool,
 ) -> BufferResult<F>
 where
     Standard: Distribution<F>,
 {
+    let (M, N) = dims;
     let mut rng = rand::thread_rng();
-    let mut data = vec![F::zero(); numel];
-    for i in 0..numel {
-        data[i] = F::from(rng.gen::<F>()).unwrap() / F::from(511.91).unwrap();
+    let mut data = vec![F::zero(); M * N];
+    for i in 0..M {
+        for j in 0..N {
+            data[i * N + j] = F::from(rng.gen::<F>()).unwrap() / F::from(511.91).unwrap();
+        }
     }
-    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: None,
-        contents: bytemuck::cast_slice(&data),
-        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-    });
 
-    match (return_cpu, quantize) {
-        (true, true) => {
-            todo!()
-        }
-        (true, false) => BufferResult::new(buffer, Some(data), None),
-        (false, true) => {
-            todo!()
-        }
-        (false, false) => BufferResult::new(buffer, None, None),
+    if quantize {
+        let (quantized, absmax) = sint8_quantize(&data, M, N);
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&quantized),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        });
+        BufferResult::new(
+            buffer,
+            if return_cpu { Some(quantized) } else { None },
+            Some(absmax),
+        )
+    } else {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&data),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        });
+        BufferResult::new(buffer, if return_cpu { Some(data) } else { None }, None)
     }
 }
 
@@ -139,9 +178,9 @@ pub async fn test_harness(workload: Workload, shader: String, dims: (usize, usiz
         println!("Matrix multiplication matches reference implementation");
     }
 
-    let BufferResult { buffer: A, .. } = rand_gpu_buffer::<f32>(&device, M * K, false, false);
-    let BufferResult { buffer: B, .. } = rand_gpu_buffer::<f32>(&device, K * N, false, false);
-    let BufferResult { buffer: C, .. } = rand_gpu_buffer::<f32>(&device, M * N, false, false);
+    let BufferResult { gpu_buf: A, .. } = rand_gpu_buffer::<f32>(&device, M * K, false, false);
+    let BufferResult { gpu_buf: B, .. } = rand_gpu_buffer::<f32>(&device, K * N, false, false);
+    let BufferResult { gpu_buf: C, .. } = rand_gpu_buffer::<f32>(&device, M * N, false, false);
 
     //warmup
     queue.submit(vec![
