@@ -5,13 +5,10 @@ use num_traits::Float;
 use rand::{distributions::Standard, prelude::Distribution, Rng};
 use tera::{Context, Tera};
 use wgpu::{util::DeviceExt, InstanceDescriptor};
-use wgpu_mm::{WorkgroupCount, WorkgroupSize, Workload};
+use wgpu_mm::{gemm, WorkgroupCount};
 
-const M: usize = 1024;
-const N: usize = 1024;
-const K: usize = 1024;
-
-pub fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32]) {
+pub fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32], dims: (usize, usize, usize)) {
+    let (M, N, K) = dims;
     for m in 0..M {
         for n in 0..N {
             let mut res = 0.;
@@ -28,13 +25,15 @@ pub async fn check(
     queue: &wgpu::Queue,
     pipeline: &wgpu::ComputePipeline,
     workgroup_count: &WorkgroupCount,
+    dims: (usize, usize, usize),
 ) -> bool {
+    let (M, N, K) = dims;
     let (A, A_cpu) = rand_gpu_buffer::<f32>(&device, M * K, true);
     let (B, B_cpu) = rand_gpu_buffer::<f32>(&device, K * N, true);
     let (C, C_cpu) = rand_gpu_buffer::<f32>(&device, M * N, true);
     let mut C_cpu = C_cpu.unwrap();
 
-    mm_ref(&A_cpu.unwrap(), &B_cpu.unwrap(), &mut C_cpu);
+    mm_ref(&A_cpu.unwrap(), &B_cpu.unwrap(), &mut C_cpu, dims);
 
     let mm = mm(&device, &pipeline, &A, &B, &C, &workgroup_count);
     queue.submit(vec![mm]);
@@ -103,77 +102,6 @@ where
     }
 }
 
-fn kernel_1(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
-    let workgroup_size_x = 16;
-    let workgroup_size_y = 16;
-    let workgroup_size_z = 1;
-    let workload = Workload::new(
-        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
-        WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
-    );
-    context.insert("workgroup_size_x", &workload.size().0);
-    context.insert("workgroup_size_y", &workload.size().1);
-    context.insert("workgroup_size_z", &workload.size().2);
-    let shader = tera.render("kernel_1.wgsl", &context).unwrap();
-    (workload, shader)
-}
-
-fn kernel_2(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
-    let workgroup_size_x = 256;
-    let workgroup_size_y = 1;
-    let workgroup_size_z = 1;
-    let workload = Workload::new(
-        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
-        WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
-    );
-    context.insert("workgroup_size_x", &workload.size().0);
-    context.insert("workgroup_size_y", &workload.size().1);
-    context.insert("workgroup_size_z", &workload.size().2);
-    let shader = tera.render("kernel_2.wgsl", &context).unwrap();
-    (workload, shader)
-}
-
-fn kernel_3(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
-    context.insert("BLOCKSIZE", &16);
-    let workgroup_size_x = 256;
-    let workgroup_size_y = 1;
-    let workgroup_size_z = 1;
-    let workload = Workload::new(
-        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
-        WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
-    );
-    context.insert("workgroup_size_x", &workload.size().0);
-    context.insert("workgroup_size_y", &workload.size().1);
-    context.insert("workgroup_size_z", &workload.size().2);
-    let shader = tera.render("kernel_3.wgsl", &context).unwrap();
-    (workload, shader)
-}
-
-fn kernel_4(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
-    let BM = 16;
-    let BN = 16;
-    let BK = 8;
-    let TM = 8;
-
-    context.insert("BM", &BM);
-    context.insert("BN", &BN);
-    context.insert("BK", &BK);
-    context.insert("TM", &TM);
-
-    let workgroup_size_x = (BM * BN) / TM;
-    let workgroup_size_y = 1;
-    let workgroup_size_z = 1;
-    let workload = Workload::new(
-        WorkgroupCount(Workload::ceil(N, BN) as _, Workload::ceil(M, BM) as _, 1),
-        WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
-    );
-    context.insert("workgroup_size_x", &workload.size().0);
-    context.insert("workgroup_size_y", &workload.size().1);
-    context.insert("workgroup_size_z", &workload.size().2);
-    let shader = tera.render("kernel_4.wgsl", &context).unwrap();
-    (workload, shader)
-}
-
 #[tokio::main]
 async fn main() {
     let _ = env_logger::builder().try_init();
@@ -202,14 +130,12 @@ async fn main() {
     .unwrap();
 
     let mut context = Context::new();
-    context.insert("M", &M);
-    context.insert("N", &N);
-    context.insert("K", &K);
+    let (M, N, K) = gemm::insert_matrix_dims(&mut context);
 
-    //let (workload, shader) = kernel_1(&mut tera, &mut context);
-    //let (workload, shader) = kernel_2(&mut tera, &mut context);
-    //let (workload, shader) = kernel_3(&mut tera, &mut context);
-    let (workload, shader) = kernel_4(&mut tera, &mut context);
+    //let (workload, shader) = gemm::kernel_1(&mut tera, &mut context);
+    //let (workload, shader) = gemm::kernel_2(&mut tera, &mut context);
+    //let (workload, shader) = gemm::kernel_3(&mut tera, &mut context);
+    let (workload, shader) = gemm::kernel_4(&mut tera, &mut context);
 
     let shader_module = unsafe {
         device.create_shader_module_unchecked(wgpu::ShaderModuleDescriptor {
@@ -225,7 +151,7 @@ async fn main() {
         entry_point: "main",
     });
 
-    if !check(&device, &queue, &pipeline, &workload.count()).await {
+    if !check(&device, &queue, &pipeline, &workload.count(), (M, N, K)).await {
         panic!("Matrix multiplication does not match reference implementation");
     } else {
         println!("Matrix multiplication matches reference implementation");
