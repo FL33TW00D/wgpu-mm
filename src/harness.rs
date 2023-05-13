@@ -2,7 +2,11 @@
 use std::{borrow::Cow, fmt::Debug, time::Instant};
 
 use num_traits::{AsPrimitive, Float};
-use rand::{distributions::Standard, prelude::Distribution, Rng};
+use rand::{
+    distributions::{uniform::SampleUniform, Standard, Uniform},
+    prelude::Distribution,
+    Rng,
+};
 use wgpu::{util::DeviceExt, InstanceDescriptor};
 
 use crate::{WorkgroupCount, Workload};
@@ -20,7 +24,20 @@ fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32], dims: (usize, usize, usize)) {
     }
 }
 
-async fn calculate_mae(
+fn quant_mm_ref(A: &[f32], B: &[u32], C: &mut [f32], dims: (usize, usize, usize)) {
+    let (M, N, K) = dims;
+    for m in 0..M {
+        for n in 0..N {
+            let mut res = 0;
+            for k in 0..K {
+                res += A[m * K + k] * B[k * N + n];
+            }
+            C[m * N + n] = res;
+        }
+    }
+}
+
+async fn check(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     pipeline: &wgpu::ComputePipeline,
@@ -110,8 +127,26 @@ fn sint8_quantize<F: Float + AsPrimitive<u32> + Debug>(
             quantized_matrix[i * (N / block_size) + (j / block_size)] = packed_value;
         }
     }
-    println!("Length Quant: {}", quantized_matrix.len());
     (quantized_matrix, absmax)
+}
+
+fn generate_weight_data<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug>(
+    M: usize,
+    N: usize,
+) -> Vec<F>
+where
+    Standard: Distribution<F>,
+    F: SampleUniform,
+{
+    let mut rng = rand::thread_rng();
+    let dist = Uniform::from(F::from(-10.0).unwrap()..F::from(10.0).unwrap());
+    let mut data = vec![F::zero(); M * N];
+    for i in 0..M {
+        for j in 0..N {
+            data[i * N + j] = rng.sample(dist) / F::from(50).unwrap();
+        }
+    }
+    data
 }
 
 fn rand_quantized_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug>(
@@ -121,16 +156,10 @@ fn rand_quantized_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug
 ) -> BufferResult<F>
 where
     Standard: Distribution<F>,
+    F: SampleUniform,
 {
     let (M, N) = dims;
-    let mut rng = rand::thread_rng();
-    let mut data = vec![F::zero(); M * N];
-    for i in 0..M {
-        for j in 0..N {
-            data[i * N + j] = F::from(rng.gen::<F>()).unwrap() / F::from(50).unwrap();
-        }
-    }
-    println!("Data: {:?}", &data[..16]);
+    let data = generate_weight_data::<F>(M, N);
     let (quantized, _absmax) = sint8_quantize(&data, M, N);
     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: None,
@@ -140,22 +169,17 @@ where
     BufferResult::new(buffer, if return_cpu { Some(data) } else { None })
 }
 
-fn rand_gpu_buffer<F: Float + bytemuck::Pod>(
+fn rand_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug>(
     device: &wgpu::Device,
     dims: (usize, usize),
     return_cpu: bool,
 ) -> BufferResult<F>
 where
     Standard: Distribution<F>,
+    F: SampleUniform,
 {
     let (M, N) = dims;
-    let mut rng = rand::thread_rng();
-    let mut data = vec![F::zero(); M * N];
-    for i in 0..M {
-        for j in 0..N {
-            data[i * N + j] = F::from(rng.gen::<F>()).unwrap() / F::from(50).unwrap();
-        }
-    }
+    let data = generate_weight_data::<F>(M, N);
     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: None,
         contents: bytemuck::cast_slice(&data),
@@ -187,7 +211,7 @@ pub async fn test_harness(
         entry_point: "main",
     });
 
-    calculate_mae(&device, &queue, &pipeline, &workload.count(), (M, N, K)).await;
+    check(&device, &queue, &pipeline, &workload.count(), (M, N, K)).await;
 
     let BufferResult { gpu_buf: A, .. } = rand_gpu_buffer::<f32>(&device, (M, K), false);
     let B = if quantize_b {
