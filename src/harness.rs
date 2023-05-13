@@ -9,6 +9,7 @@ use rand::{
 use wgpu::{util::DeviceExt, InstanceDescriptor};
 
 use crate::{
+    gemv::ABSMAX,
     quant::{sint8_dequantize, sint8_quantize},
     WorkgroupCount, Workload,
 };
@@ -40,8 +41,7 @@ async fn check(
 
     let (B, B_cpu) = if quantized {
         let (B, B_cpu) = rand_quantized_gpu_buffer::<f32>(&device, (K, N), true);
-        let b_dequant = sint8_dequantize(&B_cpu.unwrap(), 2.0, K, N);
-        println!("B Dequantized: {:?}", &b_dequant[..16]);
+        let b_dequant = sint8_dequantize(&B_cpu.unwrap(), ABSMAX, K, N);
         (B, Some(b_dequant))
     } else {
         rand_gpu_buffer::<f32>(&device, (K, N), true)
@@ -70,6 +70,9 @@ async fn check(
     );
     println!("CPU\n{:?}\n...\n{:?}", &C_cpu[..16], &C_cpu[M * N - 16..]);
     println!("Max Absolute Error: {}", mae);
+    if mae > 1e-3 {
+        panic!("MAE too high");
+    }
 }
 
 async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {

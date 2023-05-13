@@ -5,7 +5,7 @@ use crate::{WorkgroupCount, WorkgroupSize, Workload};
 const M: usize = 1;
 const N: usize = 1024;
 const K: usize = 1024;
-const ABSMAX: f32 = 0.02; //1/50
+pub const ABSMAX: f32 = 2.0; //1/50
 
 pub fn insert_matrix_dims(context: &mut Context) -> (usize, usize, usize) {
     context.insert("M", &M);
