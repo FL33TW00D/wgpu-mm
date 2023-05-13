@@ -105,7 +105,7 @@ mod tests {
         let mut context = tera::Context::new();
         let dims = insert_matrix_dims(&mut context);
         let (workload, shader) = gemm_1(&mut tera, &mut context);
-        test_harness(workload, shader, dims).await;
+        test_harness(workload, shader, dims, false).await;
     }
 
     #[tokio::test]
@@ -115,7 +115,7 @@ mod tests {
         let mut context = tera::Context::new();
         let dims = insert_matrix_dims(&mut context);
         let (workload, shader) = gemm_2(&mut tera, &mut context);
-        test_harness(workload, shader, dims).await;
+        test_harness(workload, shader, dims, false).await;
     }
 
     #[tokio::test]
@@ -125,7 +125,7 @@ mod tests {
         let mut context = tera::Context::new();
         let dims = insert_matrix_dims(&mut context);
         let (workload, shader) = gemm_3(&mut tera, &mut context);
-        test_harness(workload, shader, dims).await;
+        test_harness(workload, shader, dims, false).await;
     }
 
     #[tokio::test]
@@ -135,6 +135,6 @@ mod tests {
         let mut context = tera::Context::new();
         let dims = insert_matrix_dims(&mut context);
         let (workload, shader) = gemm_4(&mut tera, &mut context);
-        test_harness(workload, shader, dims).await;
+        test_harness(workload, shader, dims, false).await;
     }
 }

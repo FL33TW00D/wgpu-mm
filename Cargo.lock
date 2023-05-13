@@ -1685,6 +1685,7 @@ dependencies = [
  "derive-new",
  "env_logger",
  "half",
+ "log",
  "matrixmultiply",
  "num-traits",
  "rand",
