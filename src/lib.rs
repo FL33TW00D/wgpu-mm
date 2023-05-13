@@ -2,8 +2,8 @@
 pub mod gemm;
 pub mod gemv;
 mod harness;
+pub mod quant;
 mod workload;
 
-pub use gemv::*;
 pub use harness::*;
 pub use workload::*;

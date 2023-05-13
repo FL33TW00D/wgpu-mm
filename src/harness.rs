@@ -9,7 +9,10 @@ use rand::{
 };
 use wgpu::{util::DeviceExt, InstanceDescriptor};
 
-use crate::{WorkgroupCount, Workload};
+use crate::{
+    quant::{sint8_dequantize, sint8_quantize},
+    WorkgroupCount, Workload,
+};
 
 fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32], dims: (usize, usize, usize)) {
     let (M, N, K) = dims;
@@ -24,42 +27,28 @@ fn mm_ref(A: &[f32], B: &[f32], C: &mut [f32], dims: (usize, usize, usize)) {
     }
 }
 
-fn quant_mm_ref(A: &[f32], B: &[u32], C: &mut [f32], dims: (usize, usize, usize)) {
-    let (M, N, K) = dims;
-    for m in 0..M {
-        for n in 0..N {
-            let mut res = 0;
-            for k in 0..K {
-                res += A[m * K + k] * B[k * N + n];
-            }
-            C[m * N + n] = res;
-        }
-    }
-}
-
 async fn check(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     pipeline: &wgpu::ComputePipeline,
     workgroup_count: &WorkgroupCount,
     dims: (usize, usize, usize),
+    quantized: bool,
 ) {
     let (M, N, K) = dims;
-    let BufferResult {
-        gpu_buf: A,
-        cpu_buf: A_cpu,
-        ..
-    } = rand_gpu_buffer::<f32>(&device, (M, N), true);
-    let BufferResult {
-        gpu_buf: B,
-        cpu_buf: B_cpu,
-        ..
-    } = rand_gpu_buffer::<f32>(&device, (K, N), true);
-    let BufferResult {
-        gpu_buf: C,
-        cpu_buf: C_cpu,
-        ..
-    } = rand_gpu_buffer::<f32>(&device, (M, N), true);
+
+    let (A, A_cpu) = rand_gpu_buffer::<f32>(&device, (M, K), true);
+
+    let (B, B_cpu) = if quantized {
+        let (B, B_cpu) = rand_quantized_gpu_buffer::<f32>(&device, (K, N), true);
+        let b_dequant = sint8_dequantize(&B_cpu.unwrap(), 2.0, K, N);
+        println!("B Dequantized: {:?}", &b_dequant[..16]);
+        (B, Some(b_dequant))
+    } else {
+        rand_gpu_buffer::<f32>(&device, (K, N), true)
+    };
+
+    let (C, C_cpu) = rand_gpu_buffer::<f32>(&device, (M, N), true);
     let mut C_cpu = C_cpu.unwrap();
 
     mm_ref(&A_cpu.unwrap(), &B_cpu.unwrap(), &mut C_cpu, dims);
@@ -100,36 +89,6 @@ async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
         .expect("Could not create adapter for GPU device")
 }
 
-#[derive(derive_new::new)]
-struct BufferResult<F: Float + bytemuck::Pod> {
-    gpu_buf: wgpu::Buffer,
-    cpu_buf: Option<Vec<F>>,
-}
-
-fn sint8_quantize<F: Float + AsPrimitive<u32> + Debug>(
-    matrix: &[F],
-    K: usize,
-    N: usize,
-) -> (Vec<u32>, F) {
-    let block_size = 4;
-    let mut quantized_matrix = vec![0u32; K * (N / block_size)];
-
-    let absmax = matrix.iter().fold(F::zero(), |acc, &x| acc.max(x.abs()));
-    println!("absmax: {:?}", absmax);
-    let sf = F::from(127.).unwrap();
-
-    for i in 0..K {
-        for j in (0..N).step_by(block_size) {
-            let packed_value = ((matrix[i * N + j] / absmax * sf).round().as_() & 0xFF)
-                | (((matrix[i * N + j + 1] / absmax * sf).round().as_() & 0xFF) << 8)
-                | (((matrix[i * N + j + 2] / absmax * sf).round().as_() & 0xFF) << 16)
-                | (((matrix[i * N + j + 3] / absmax * sf).round().as_() & 0xFF) << 24);
-            quantized_matrix[i * (N / block_size) + (j / block_size)] = packed_value;
-        }
-    }
-    (quantized_matrix, absmax)
-}
-
 fn generate_weight_data<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug>(
     M: usize,
     N: usize,
@@ -143,9 +102,10 @@ where
     let mut data = vec![F::zero(); M * N];
     for i in 0..M {
         for j in 0..N {
-            data[i * N + j] = rng.sample(dist) / F::from(50).unwrap();
+            data[i * N + j] = dist.sample(&mut rng) / F::from(50).unwrap();
         }
     }
+
     data
 }
 
@@ -153,7 +113,7 @@ fn rand_quantized_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug
     device: &wgpu::Device,
     dims: (usize, usize),
     return_cpu: bool,
-) -> BufferResult<F>
+) -> (wgpu::Buffer, Option<Vec<u32>>)
 where
     Standard: Distribution<F>,
     F: SampleUniform,
@@ -166,14 +126,18 @@ where
         contents: bytemuck::cast_slice(&quantized),
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
     });
-    BufferResult::new(buffer, if return_cpu { Some(data) } else { None })
+    if return_cpu {
+        (buffer, Some(quantized))
+    } else {
+        (buffer, None)
+    }
 }
 
 fn rand_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug>(
     device: &wgpu::Device,
     dims: (usize, usize),
     return_cpu: bool,
-) -> BufferResult<F>
+) -> (wgpu::Buffer, Option<Vec<F>>)
 where
     Standard: Distribution<F>,
     F: SampleUniform,
@@ -185,7 +149,11 @@ where
         contents: bytemuck::cast_slice(&data),
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
     });
-    BufferResult::new(buffer, if return_cpu { Some(data) } else { None })
+    if return_cpu {
+        (buffer, Some(data))
+    } else {
+        (buffer, None)
+    }
 }
 
 pub async fn test_harness(
@@ -211,17 +179,23 @@ pub async fn test_harness(
         entry_point: "main",
     });
 
-    check(&device, &queue, &pipeline, &workload.count(), (M, N, K)).await;
+    check(
+        &device,
+        &queue,
+        &pipeline,
+        &workload.count(),
+        (M, N, K),
+        quantize_b,
+    )
+    .await;
 
-    let BufferResult { gpu_buf: A, .. } = rand_gpu_buffer::<f32>(&device, (M, K), false);
+    let (A, _) = rand_gpu_buffer::<f32>(&device, (M, K), false);
     let B = if quantize_b {
-        let buffer_result = rand_quantized_gpu_buffer::<f32>(&device, (K, N), false);
-        let quantized_buffer = buffer_result.gpu_buf;
-        quantized_buffer
+        rand_quantized_gpu_buffer::<f32>(&device, (K, N), false).0
     } else {
-        rand_gpu_buffer::<f32>(&device, (K, N), false).gpu_buf
+        rand_gpu_buffer::<f32>(&device, (K, N), false).0
     };
-    let BufferResult { gpu_buf: C, .. } = rand_gpu_buffer::<f32>(&device, (M, N), false);
+    let (C, _) = rand_gpu_buffer::<f32>(&device, (M, N), false);
 
     //warmup
     queue.submit(vec![
