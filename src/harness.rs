@@ -76,11 +76,19 @@ async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
         .expect("Could not create adapter for GPU device")
 }
 
+#[derive(derive_new::new)]
+struct BufferResult<F: Float + bytemuck::Pod> {
+    buffer: wgpu::Buffer,
+    cpu_buffer: Option<Vec<F>>,
+    absmax: Option<F>,
+}
+
 fn rand_gpu_buffer<F: Float + bytemuck::Pod>(
     device: &wgpu::Device,
     numel: usize,
     return_cpu: bool,
-) -> (wgpu::Buffer, Option<Vec<F>>)
+    quantize: bool,
+) -> BufferResult<F>
 where
     Standard: Distribution<F>,
 {
@@ -95,10 +103,15 @@ where
         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
     });
 
-    if return_cpu {
-        (buffer, Some(data))
-    } else {
-        (buffer, None)
+    match (return_cpu, quantize) {
+        (true, true) => {
+            todo!()
+        }
+        (true, false) => BufferResult::new(buffer, Some(data), None),
+        (false, true) => {
+            todo!()
+        }
+        (false, false) => BufferResult::new(buffer, None, None),
     }
 }
 
@@ -126,9 +139,9 @@ pub async fn test_harness(workload: Workload, shader: String, dims: (usize, usiz
         println!("Matrix multiplication matches reference implementation");
     }
 
-    let (A, _) = rand_gpu_buffer::<f32>(&device, M * K, false);
-    let (B, _) = rand_gpu_buffer::<f32>(&device, K * N, false);
-    let (C, _) = rand_gpu_buffer::<f32>(&device, M * N, false);
+    let BufferResult { buffer: A, .. } = rand_gpu_buffer::<f32>(&device, M * K, false, false);
+    let BufferResult { buffer: B, .. } = rand_gpu_buffer::<f32>(&device, K * N, false, false);
+    let BufferResult { buffer: C, .. } = rand_gpu_buffer::<f32>(&device, M * N, false, false);
 
     //warmup
     queue.submit(vec![

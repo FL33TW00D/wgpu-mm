@@ -15,4 +15,5 @@ wgpu = { git = "https://github.com/gfx-rs/wgpu", branch="master" }
 half = { version = "2.2.1", features = ["bytemuck", "num-traits"] }
 env_logger = "0.10.0"
 matrixmultiply = "0.3.2"
+derive-new = "0.5.9"
 
