@@ -5,7 +5,6 @@ use num_traits::{AsPrimitive, Float};
 use rand::{
     distributions::{uniform::SampleUniform, Standard, Uniform},
     prelude::Distribution,
-    Rng,
 };
 use wgpu::{util::DeviceExt, InstanceDescriptor};
 
@@ -89,7 +88,7 @@ async fn gpu_handle() -> (wgpu::Device, wgpu::Queue) {
         .expect("Could not create adapter for GPU device")
 }
 
-fn generate_weight_data<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug>(
+fn generate_weight_data<F: Float + bytemuck::Pod + AsPrimitive<i32> + Debug>(
     M: usize,
     N: usize,
 ) -> Vec<F>
@@ -109,7 +108,7 @@ where
     data
 }
 
-fn rand_quantized_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug>(
+fn rand_quantized_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<i32> + Debug>(
     device: &wgpu::Device,
     dims: (usize, usize),
     return_cpu: bool,
@@ -133,7 +132,7 @@ where
     }
 }
 
-fn rand_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<u32> + Debug>(
+fn rand_gpu_buffer<F: Float + bytemuck::Pod + AsPrimitive<i32> + Debug>(
     device: &wgpu::Device,
     dims: (usize, usize),
     return_cpu: bool,

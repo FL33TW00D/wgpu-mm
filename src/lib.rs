@@ -1,3 +1,4 @@
+#![feature(int_roundings)]
 #![allow(non_snake_case)]
 pub mod gemm;
 pub mod gemv;
