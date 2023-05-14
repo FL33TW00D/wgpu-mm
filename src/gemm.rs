@@ -85,10 +85,12 @@ pub fn gemm_4(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
         WorkgroupCount(Workload::ceil(N, BN) as _, Workload::ceil(M, BM) as _, 1),
         WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
     );
+    println!("workload: {:?}", workload);
     context.insert("workgroup_size_x", &workload.size().0);
     context.insert("workgroup_size_y", &workload.size().1);
     context.insert("workgroup_size_z", &workload.size().2);
     let shader = tera.render("gemm_4.wgsl", &context).unwrap();
+    println!("shader: {}", shader);
     (workload, shader)
 }
 

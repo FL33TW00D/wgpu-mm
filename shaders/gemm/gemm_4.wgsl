@@ -36,7 +36,7 @@ fn main(
     let innerColB = local_id.x % {{BN}}u; // warp-level GMEM coalescing
     let innerRowB = local_id.x / {{BN}}u;
 
-    var threadResults = array<f32, {{ TM }}u>();
+    var threadResults = array<f32, {{ TM }}u>(0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0);
     for (var bkIdx = 0u; bkIdx < K; bkIdx += {{ BK }}u) {
         As[innerRowA * {{ BK }}u + innerColA] = A[aIdx + (innerRowA * K + innerColA)];
         Bs[innerRowB * {{ BN }}u + innerColB] = B[bIdx + (innerRowB * N + innerColB)];
@@ -45,15 +45,15 @@ fn main(
         aIdx += {{ BK }}u;
         bIdx += {{ BK }}u * N;
 
-        for (var dotIdx = 0u; dotIdx < {{ BK }}u; dotIdx += 1u) {
+        for (var dotIdx = 0u; dotIdx < {{ BK }}u; dotIdx++) {
             var tmpB = Bs[dotIdx * {{ BN }}u + threadCol];
-            for (var resIdx = 0u; resIdx < {{ TM }}u; resIdx += 1u) {
+            for (var resIdx = 0u; resIdx < {{ TM }}u; resIdx++) {
                 threadResults[resIdx] += As[(threadRow * {{ TM }}u + resIdx) * {{ BK }}u + dotIdx] * tmpB;
             }
         }
         workgroupBarrier();
     }
-    for (var resIdx = 0u; resIdx < {{ TM }}u; resIdx += 1u) {
+    for (var resIdx = 0u; resIdx < {{ TM }}u; resIdx++) {
         C[cIdx + (threadRow * {{ TM }}u + resIdx) * N + threadCol] = threadResults[resIdx];
     }
 }
