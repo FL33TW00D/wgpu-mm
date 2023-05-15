@@ -50,13 +50,18 @@ pub fn gemm_2(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
 pub fn gemm_3(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     tera.add_raw_template("gemm_3.wgsl", include_str!("../shaders/gemm/gemm_3.wgsl"))
         .unwrap();
-    context.insert("BLOCKSIZE", &16);
-    let workgroup_size_x = 256;
+    let BLOCKSIZE = 16;
+    context.insert("BLOCKSIZE", &BLOCKSIZE);
+    let workgroup_size_x = BLOCKSIZE * BLOCKSIZE;
     let workgroup_size_y = 1;
     let workgroup_size_z = 1;
     let workload = Workload::new(
-        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
-        WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
+        WorkgroupCount(
+            Workload::ceil(M, BLOCKSIZE) as _,
+            Workload::ceil(N, BLOCKSIZE) as _,
+            1,
+        ),
+        WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
     );
     context.insert("workgroup_size_x", &workload.size().0);
     context.insert("workgroup_size_y", &workload.size().1);
@@ -71,7 +76,7 @@ pub fn gemm_4(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     let BM = 16;
     let BN = 16;
     let BK = 8;
-    let TM = 8;
+    let TM = 2;
 
     context.insert("BM", &BM);
     context.insert("BN", &BN);

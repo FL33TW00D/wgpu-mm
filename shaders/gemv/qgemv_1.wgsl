@@ -25,8 +25,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let right_{{ i }} = unpack4x8snorm(B[index_right + ({{ i }}u * {{ (N / 4)}}u)]) * {{ absmax }}f;
         {% endfor %}
 
-        workgroupBarrier();
-
         {% for i in range(end = 4) %}
             result[{{ i }}] += dot(left, vec4<f32>(
             {%- for j in range(end = 4) -%}
