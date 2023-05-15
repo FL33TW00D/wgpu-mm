@@ -1,5 +1,5 @@
-//Kernel 5: 2D Blocktiling for Calculating Multiple Results per Thread
-//https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/5_kernel_2D_blocktiling.cuh
+//Kernel 6: Vectorize SMEM and GMEM Accesses 
+//https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/6_kernel_vectorize.cuh
 @group(0) @binding(0)
 var<storage, read> A: array<f32>;
 
@@ -27,8 +27,8 @@ fn main(
     let totalResultsBlocktile = {{ BM * BN }}u;
     let numThreadsBlocktile = totalResultsBlocktile / {{ TM * TN }}u;
 
-    let threadCol = local_id.x % {{ BN / TN }}u;
-    let threadRow = local_id.x / {{ BN / TN }}u;
+    let threadCol = local_id.x % {{ BN / TN}}u;
+    let threadRow = local_id.x / {{ BN / TN}}u;
 
     var aIdx = cRow * {{ BM }}u * K;                    
     var bIdx = cCol * {{ BN }}u;                        
@@ -72,7 +72,7 @@ fn main(
             }
             for (var resIdxM = 0u; resIdxM < {{ TM }}u; resIdxM++) {
                 for (var resIdxN = 0u; resIdxN < {{ TN }}u; resIdxN++) {
-                    threadResults[resIdxM * {{ TN }}u + resIdxN] = fma(regM[resIdxM], regN[resIdxN], threadResults[resIdxM * {{ TN }}u + resIdxN]);
+                    threadResults[resIdxM * {{ TN }}u + resIdxN] += regM[resIdxM] * regN[resIdxN];
                 }
             }
         }
