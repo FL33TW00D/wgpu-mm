@@ -52,7 +52,7 @@ fn main(
         for (var dotIdx = 0u; dotIdx < {{ BK }}u; dotIdx++) {
             var tmpB = Bs[dotIdx * {{ BN }}u + threadCol];
             for (var resIdx = 0u; resIdx < {{ TM }}u; resIdx++) {
-                threadResults[resIdx] += As[(threadRow * {{ TM }}u + resIdx) * {{ BK }}u + dotIdx] * tmpB;
+                threadResults[resIdx] = fma(As[(threadRow * {{ TM }}u + resIdx) * {{ BK }}u + dotIdx], tmpB, threadResults[resIdx]);
             }
         }
         workgroupBarrier();

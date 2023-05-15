@@ -70,6 +70,37 @@ pub fn gemm_3(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     (workload, shader)
 }
 
+pub fn gemm_3v(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
+    tera.add_raw_template("gemm_3v.wgsl", include_str!("../shaders/gemm/gemm_3v.wgsl"))
+        .unwrap();
+    let BM = 16;
+    let BN = 16 / 4;
+    let BK = 8;
+
+    context.insert("BM", &BM);
+    context.insert("BN", &BN);
+    context.insert("BK", &BK);
+
+    let workgroup_size_x = BM * BN;
+    let workgroup_size_y = 1;
+    let workgroup_size_z = 1;
+    let workload = Workload::new(
+        WorkgroupCount(
+            Workload::ceil(M, BM) as _,
+            Workload::ceil(N / 4, BN) as _,
+            1,
+        ),
+        WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
+    );
+    println!("workload: {:?}", workload);
+    context.insert("workgroup_size_x", &workload.size().0);
+    context.insert("workgroup_size_y", &workload.size().1);
+    context.insert("workgroup_size_z", &workload.size().2);
+    let shader = tera.render("gemm_3v.wgsl", &context).unwrap();
+    println!("shader: {}", shader);
+    (workload, shader)
+}
+
 pub fn gemm_4(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     tera.add_raw_template("gemm_4.wgsl", include_str!("../shaders/gemm/gemm_4.wgsl"))
         .unwrap();
@@ -194,6 +225,16 @@ mod tests {
         let mut context = tera::Context::new();
         let dims = insert_matrix_dims(&mut context);
         let (workload, shader) = gemm_3(&mut tera, &mut context);
+        test_harness(workload, shader, dims, false).await;
+    }
+
+    #[tokio::test]
+    pub async fn test_gemm_3v() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let mut tera = tera::Tera::default();
+        let mut context = tera::Context::new();
+        let dims = insert_matrix_dims(&mut context);
+        let (workload, shader) = gemm_3v(&mut tera, &mut context);
         test_harness(workload, shader, dims, false).await;
     }
 

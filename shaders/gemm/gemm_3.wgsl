@@ -41,7 +41,7 @@ fn main(
         bIdx += {{ BLOCKSIZE }}u * N;
 
         for (var dotIdx = 0u; dotIdx < {{ BLOCKSIZE }}u; dotIdx += 1u) {
-            tmp += As[threadRow * {{ BLOCKSIZE }}u + dotIdx] * Bs[dotIdx * {{ BLOCKSIZE }}u + threadCol];
+            tmp = fma(As[threadRow * {{ BLOCKSIZE }}u + dotIdx], Bs[dotIdx * {{ BLOCKSIZE }}u + threadCol], tmp);
         }
         workgroupBarrier();
     }
