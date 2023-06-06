@@ -47,6 +47,11 @@ async fn check(
         rand_gpu_buffer::<f32>(&device, (K, N), true)
     };
 
+    /*
+    println!("A: {:?}\n", &A_cpu);
+    println!("B: {:?}\n", &B_cpu);
+    */
+
     let (C, C_cpu) = rand_gpu_buffer::<f32>(&device, (M, N), true);
     let mut C_cpu = C_cpu.unwrap();
 
@@ -63,6 +68,10 @@ async fn check(
             mae = diff;
         }
     }
+    /*
+    println!("GPU: {:?}\n", &gpu_out);
+    println!("CPU: {:?}", &C_cpu);
+    */
     println!(
         "GPU\n{:?}\n...\n{:?}",
         &gpu_out[..16],
