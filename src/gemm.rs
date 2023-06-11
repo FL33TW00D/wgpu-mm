@@ -38,7 +38,11 @@ pub fn gemm_2(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     let workgroup_size_y = 1;
     let workgroup_size_z = 1;
     let workload = Workload::new(
-        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
+        WorkgroupCount(
+            Workload::ceil(M, 16) as _,
+            Workload::ceil(N, 16 * 4) as _,
+            1,
+        ),
         WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
     );
     context.insert("workgroup_size_x", &workload.size().0);

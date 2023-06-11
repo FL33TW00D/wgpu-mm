@@ -22,7 +22,6 @@ fn main(
         var tmp = vec4<f32>();
         for (var k = 0u; k < K / 4u; k = k + 1u) {
           let a = A[cRow * K / 4u + k];
-
           tmp += vec4<f32>(a.x) * B[k * N + cCol]; 
           tmp += vec4<f32>(a.y) * B[k * N + cCol + (1u * N/4u)]; 
           tmp += vec4<f32>(a.z) * B[k * N + cCol + (2u * N/4u)];
