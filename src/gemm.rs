@@ -17,7 +17,7 @@ pub fn gemm_1(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     tera.add_raw_template("gemm_1.wgsl", include_str!("../shaders/gemm/gemm_1.wgsl"))
         .unwrap();
     let workgroup_size_x = 16;
-    let workgroup_size_y = 16;
+    let workgroup_size_y = 16 / 4;
     let workgroup_size_z = 1;
     let workload = Workload::new(
         WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
@@ -27,6 +27,7 @@ pub fn gemm_1(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     context.insert("workgroup_size_y", &workload.size().1);
     context.insert("workgroup_size_z", &workload.size().2);
     let shader = tera.render("gemm_1.wgsl", &context).unwrap();
+    println!("shader: {}", shader);
     (workload, shader)
 }
 
@@ -73,26 +74,17 @@ pub fn gemm_3(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
 pub fn gemm_3v(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     tera.add_raw_template("gemm_3v.wgsl", include_str!("../shaders/gemm/gemm_3v.wgsl"))
         .unwrap();
-    let BM = 16;
-    let BN = 16 / 4;
-    let BK = 8;
-
-    context.insert("BM", &BM);
-    context.insert("BN", &BN);
-    context.insert("BK", &BK);
-
-    let workgroup_size_x = BM * BN;
+    let BS = 16;
+    let BSD4 = 4;
+    context.insert("BS", &BS);
+    context.insert("BSD4", &BSD4);
+    let workgroup_size_x = BS * BSD4;
     let workgroup_size_y = 1;
     let workgroup_size_z = 1;
     let workload = Workload::new(
-        WorkgroupCount(
-            Workload::ceil(M, BM) as _,
-            Workload::ceil(N / 4, BN) as _,
-            1,
-        ),
+        WorkgroupCount(Workload::ceil(M, BS) as _, Workload::ceil(N, BS) as _, 1),
         WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
     );
-    println!("workload: {:?}", workload);
     context.insert("workgroup_size_x", &workload.size().0);
     context.insert("workgroup_size_y", &workload.size().1);
     context.insert("workgroup_size_z", &workload.size().2);

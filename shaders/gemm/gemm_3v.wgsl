@@ -9,8 +9,8 @@ var<storage, read> B: array<vec4<f32>>;
 @group(0) @binding(2)
 var<storage, read_write> C: array<vec4<f32>>;
 
-var<workgroup> As: array<vec4<f32>, {{ BM * BK / 4 }}u>;
-var<workgroup> Bs: array<vec4<f32>, {{ BK * BN }}u>;
+var<workgroup> As: array<vec4<f32>, {{ * BLOCKSIZE }}u>;
+var<workgroup> Bs: array<vec4<f32>, {{ BLOCKSIZE * BLOCKSIZE }}u>;
 
 @compute @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, {{ workgroup_size_z }})
 fn main(
@@ -24,31 +24,32 @@ fn main(
     let cRow = group_id.x; 
     let cCol = group_id.y;
 
-    let threadCol = local_id.x % {{ BN }}u;
-    let threadRow = local_id.x / {{ BN }}u;
+    let threadCol = local_id.x % {{ BLOCKSIZE / 4 }}u;
+    let threadRow = local_id.x / {{ BLOCKSIZE }}u;
 
-    var aIdx = cRow * {{ BM }}u * K;                    // row=cRow, col=0
-    var bIdx = cCol * {{ BN }}u;                        // row=0, col=cCol
-    var cIdx = cRow * {{ BM }}u * N + cCol * {{ BN }}u; // row=cRow, col=cCol
+    var aIdx = cRow * {{ BLOCKSIZE }}u * (K / 4u); 
+    var bIdx = cCol * {{ BLOCKSIZE / 4 }}u;
+    var cIdx = cRow * {{ BLOCKSIZE }}u * N + cCol * {{ BLOCKSIZE / 4 }}u; 
 
     var tmp = vec4<f32>();
-    for (var bkIdx = 0u; bkIdx < K; bkIdx += {{ BK }}u) {
-        As[threadRow * {{ BK }}u + threadCol] = A[aIdx + (threadRow * K + threadCol)];
-        Bs[threadRow * {{ BN }}u + threadCol] = B[bIdx + (threadRow * N + threadCol)];
+    for (var bkIdx = 0u; bkIdx < K; bkIdx += {{ BLOCKSIZE }}u) {
+        As[threadRow * {{ BLOCKSIZE / 4 }}u + threadCol] = A[aIdx + (threadRow * (K / 4u) + threadCol)];
+        Bs[threadRow * {{ BLOCKSIZE }}u + threadCol] = B[bIdx + (threadRow * N + threadCol)];
         workgroupBarrier();
 
-        aIdx += {{ BK }}u;
-        bIdx += {{ BK }}u * N;
+        aIdx += {{ BLOCKSIZE / 4 }}u;
+        bIdx += {{ BLOCKSIZE }}u * (N / 4u);
 
-        for (var dotIdx = 0u; dotIdx < {{ BK }}u; dotIdx += 1u) {
-            let b0 = Bs[dotIdx * {{ BN }}u + threadCol];
-            let b1 = Bs[dotIdx + 1u * {{ BN }}u + threadCol];
-            let b2 = Bs[dotIdx + 2u * {{ BN }}u + threadCol];
-            let b3 = Bs[dotIdx + 3u * {{ BN }}u + threadCol];
-            tmp = fma(vec4<f32>(As[threadRow * {{ BK }}u + dotIdx].x), b0, tmp);
-            tmp = fma(vec4<f32>(As[threadRow * {{ BK }}u + dotIdx].y), b1, tmp);
-            tmp = fma(vec4<f32>(As[threadRow * {{ BK }}u + dotIdx].z), b2, tmp);
-            tmp = fma(vec4<f32>(As[threadRow * {{ BK }}u + dotIdx].w), b3, tmp);
+        for (var dotIdx = 0u; dotIdx < {{ BLOCKSIZE }}u; dotIdx += 1u) {
+            let aCached = As[threadRow * {{ BLOCKSIZE / 4 }}u + dotIdx];
+            let b0 = Bs[dotIdx * {{ BLOCKSIZE }}u + threadCol];
+            let b1 = Bs[dotIdx + 1u * {{ BLOCKSIZE }}u + threadCol];
+            let b2 = Bs[dotIdx + 2u * {{ BLOCKSIZE }}u + threadCol];
+            let b3 = Bs[dotIdx + 3u * {{ BLOCKSIZE }}u + threadCol];
+            tmp = fma(vec4<f32>(aCached.x), b0, tmp);
+            tmp = fma(vec4<f32>(aCached.y), b1, tmp);
+            tmp = fma(vec4<f32>(aCached.z), b2, tmp);
+            tmp = fma(vec4<f32>(aCached.w), b3, tmp);
         }
         workgroupBarrier();
     }
