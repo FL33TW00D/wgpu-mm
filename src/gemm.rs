@@ -78,8 +78,8 @@ pub fn gemm_3(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
 pub fn gemm_3v(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     tera.add_raw_template("gemm_3v.wgsl", include_str!("../shaders/gemm/gemm_3v.wgsl"))
         .unwrap();
-    let BS = 16;
-    let BSD4 = 4;
+    let BS = 32;
+    let BSD4 = 8;
     context.insert("BS", &BS);
     context.insert("BSD4", &BSD4);
     let workgroup_size_x = BS * BSD4;
