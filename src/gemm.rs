@@ -56,11 +56,7 @@ pub fn gemm_2(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     let workgroup_size_y = 1;
     let workgroup_size_z = 1;
     let workload = Workload::new(
-        WorkgroupCount(
-            Workload::ceil(M, 16) as _,
-            Workload::ceil(N, 16 * 4) as _,
-            1,
-        ),
+        WorkgroupCount(Workload::ceil(M, 16) as _, Workload::ceil(N, 16) as _, 1),
         WorkgroupSize(workgroup_size_x, workgroup_size_y, workgroup_size_z),
     );
     context.insert("workgroup_size_x", &workload.size().0);
@@ -90,28 +86,6 @@ pub fn gemm_3(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     context.insert("workgroup_size_y", &workload.size().1);
     context.insert("workgroup_size_z", &workload.size().2);
     let shader = tera.render("gemm_3.wgsl", &context).unwrap();
-    (workload, shader)
-}
-
-pub fn gemm_3v(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
-    tera.add_raw_template("gemm_3v.wgsl", include_str!("../shaders/gemm/gemm_3v.wgsl"))
-        .unwrap();
-    let BS = 32;
-    let BSD4 = 8;
-    context.insert("BS", &BS);
-    context.insert("BSD4", &BSD4);
-    let workgroup_size_x = BS * BSD4;
-    let workgroup_size_y = 1;
-    let workgroup_size_z = 1;
-    let workload = Workload::new(
-        WorkgroupCount(Workload::ceil(M, BS) as _, Workload::ceil(N, BS) as _, 1),
-        WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
-    );
-    context.insert("workgroup_size_x", &workload.size().0);
-    context.insert("workgroup_size_y", &workload.size().1);
-    context.insert("workgroup_size_z", &workload.size().2);
-    let shader = tera.render("gemm_3v.wgsl", &context).unwrap();
-    println!("shader: {}", shader);
     (workload, shader)
 }
 
@@ -230,7 +204,6 @@ mod tests {
     gemm_test!(test_gemm_1v, gemm_1v);
     gemm_test!(test_gemm_2, gemm_2);
     gemm_test!(test_gemm_3, gemm_3);
-    gemm_test!(test_gemm_3v, gemm_3v);
     gemm_test!(test_gemm_4, gemm_4);
     gemm_test!(test_gemm_5, gemm_5);
     gemm_test!(test_gemm_6, gemm_6);

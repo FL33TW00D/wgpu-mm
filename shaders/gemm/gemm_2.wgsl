@@ -1,13 +1,13 @@
 //Kernel 2: Global Memory Coalescing
 //https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/2_kernel_global_mem_coalesce.cuh
 @group(0) @binding(0)
-var<storage, read> A: array<vec4<f32>>;
+var<storage, read> A: array<f32>;
 
 @group(0) @binding(1)
-var<storage, read> B: array<vec4<f32>>;
+var<storage, read> B: array<f32>;
 
 @group(0) @binding(2)
-var<storage, read_write> C: array<vec4<f32>>;
+var<storage, read_write> C: array<f32>;
 
 @compute @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, {{ workgroup_size_z }})
 fn main(
@@ -20,15 +20,11 @@ fn main(
     let K = {{ K }}u;
     let cRow = group_id.x * 16u + (local_id.x / 16u);
     let cCol = group_id.y * 16u + (local_id.x % 16u);
-    if (cRow < M && cCol < N / 4u) {
-        var tmp = vec4<f32>();
-        for (var k = 0u; k < K / 4u; k = k + 1u) {
-          let a = A[cRow * K / 4u + k];
-          tmp = fma(vec4<f32>(a.x) ,B[k * N + cCol], tmp);
-          tmp = fma(vec4<f32>(a.y) ,B[k * N + cCol + (1u * N/4u)], tmp);
-          tmp = fma(vec4<f32>(a.z) ,B[k * N + cCol + (2u * N/4u)], tmp);
-          tmp = fma(vec4<f32>(a.w) ,B[k * N + cCol + (3u * N/4u)], tmp);
+    if (cRow < M && cCol < N) {
+        var tmp = 0f;
+        for (var i = 0u; i < K; i = i + 1u) {
+          tmp += A[cRow * K + i] * B[i * N + cCol];
         }
-        C[cRow * N / 4u + cCol] = tmp; 
+        C[cRow * N + cCol] = tmp;
     }
 }
