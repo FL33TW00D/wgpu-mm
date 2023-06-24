@@ -152,11 +152,11 @@ pub fn gemm_5(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
 pub fn gemm_6(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     tera.add_raw_template("gemm_6.wgsl", include_str!("../shaders/gemm/gemm_6.wgsl"))
         .unwrap();
-    let BM = 128;
-    let BN = 128;
-    let BK = 8;
-    let TM = 8;
-    let TN = 8;
+    let BM = 64;
+    let BN = 64;
+    let BK = 16
+    let TM = 16;
+    let TN = 1;
 
     context.insert("BM", &BM);
     context.insert("BN", &BN);
