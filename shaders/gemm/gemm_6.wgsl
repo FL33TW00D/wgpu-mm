@@ -24,9 +24,6 @@ fn main(
     let cRow = group_id.y; 
     let cCol = group_id.x;
 
-    let resultsPerBlock = {{ BM * BN }}u;
-    let threadsPerBlock = resultsPerBlock / {{ TM * TN }}u;
-
     // BN/TN are the number of threads to span a column
     let threadCol = local_id.x % {{ BN / TN }}u;
     let threadRow = local_id.x / {{ BN / TN }}u;
@@ -48,13 +45,13 @@ fn main(
 
     for (var bkIdx = 0u; bkIdx < K; bkIdx += {{ BK }}u) {
 
-        var tmp = A[aIdx + tileRowA * K + tileColA * 4u];
+        var tmp = A[aIdx + (tileRowA * K + tileColA * 4u)];
         As[(tileColA * 4u + 0u) * {{ BM }}u + tileRowA] = tmp.x;
         As[(tileColA * 4u + 1u) * {{ BM }}u + tileRowA] = tmp.y;
         As[(tileColA * 4u + 2u) * {{ BM }}u + tileRowA] = tmp.z;
         As[(tileColA * 4u + 3u) * {{ BM }}u + tileRowA] = tmp.w;
         
-        tmp = B[bIdx + tileRowB * N + tileColB * 4u];
+        tmp = B[bIdx + (tileRowB * N + tileColB * 4u)];
         Bs[tileRowB * {{ BN }}u + tileColB * 4u] = tmp.x;
         Bs[tileRowB * {{ BN }}u + tileColB * 4u + 1u] = tmp.y;
         Bs[tileRowB * {{ BN }}u + tileColB * 4u + 2u] = tmp.z;
@@ -73,7 +70,7 @@ fn main(
             }
             for (var resIdxM = 0u; resIdxM < {{ TM }}u; resIdxM++) {
                 for (var resIdxN = 0u; resIdxN < {{ TN }}u; resIdxN++) {
-                    threadResults[resIdxM * {{ TN }}u + resIdxN] = fma(regM[resIdxM], regN[resIdxN], threadResults[resIdxM * {{ TN }}u + resIdxN]);
+                    threadResults[resIdxM * {{ TN }}u + resIdxN] += regM[resIdxM] * regN[resIdxN];
                 }
             }
         }
@@ -82,10 +79,10 @@ fn main(
     for (var resIdxM = 0u; resIdxM < {{ TM }}u; resIdxM++) {
         for (var resIdxN = 0u; resIdxN < {{ TN }}u; resIdxN += 4u) {
             var tmp = C[cIdx + (threadRow * {{ TM }}u + resIdxM) * N + threadCol * {{ TN }}u + resIdxN]; 
-            tmp.x = threadResults[resIdxM * {{ TN }}u + resIdxN];
-            tmp.y = threadResults[resIdxM * {{ TN }}u + resIdxN + 1u];
-            tmp.z = threadResults[resIdxM * {{ TN }}u + resIdxN + 2u];
-            tmp.w = threadResults[resIdxM * {{ TN }}u + resIdxN + 3u];
+            tmp.x += threadResults[resIdxM * {{ TN }}u + resIdxN];
+            tmp.y += threadResults[resIdxM * {{ TN }}u + resIdxN + 1u];
+            tmp.z += threadResults[resIdxM * {{ TN }}u + resIdxN + 2u];
+            tmp.w += threadResults[resIdxM * {{ TN }}u + resIdxN + 3u];
             C[cIdx + (threadRow * {{ TM }}u + resIdxM) * N + threadCol * {{ TN }}u + resIdxN] = tmp;
         }
     }
