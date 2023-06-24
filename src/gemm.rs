@@ -149,6 +149,37 @@ pub fn gemm_5(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     (workload, shader)
 }
 
+pub fn gemm_6(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
+    tera.add_raw_template("gemm_6.wgsl", include_str!("../shaders/gemm/gemm_6.wgsl"))
+        .unwrap();
+    let BM = 32;
+    let BN = 32;
+    let BK = 16;
+    let TM = 4;
+    let TN = 4;
+
+    context.insert("BM", &BM);
+    context.insert("BN", &BN);
+    context.insert("BK", &BK);
+    context.insert("TM", &TM);
+    context.insert("TN", &TN);
+
+    let workgroup_size_x = (BM * BN) / (TM * TN);
+    let workgroup_size_y = 1;
+    let workgroup_size_z = 1;
+    let workload = Workload::new(
+        WorkgroupCount(Workload::ceil(N, BN) as _, Workload::ceil(M, BM) as _, 1),
+        WorkgroupSize(workgroup_size_x as _, workgroup_size_y, workgroup_size_z),
+    );
+    println!("workload: {:?}", workload);
+    context.insert("workgroup_size_x", &workload.size().0);
+    context.insert("workgroup_size_y", &workload.size().1);
+    context.insert("workgroup_size_z", &workload.size().2);
+    let shader = tera.render("gemm_6.wgsl", &context).unwrap();
+    println!("shader: {}", shader);
+    (workload, shader)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::test_harness;
@@ -175,4 +206,5 @@ mod tests {
     gemm_test!(test_gemm_3, gemm_3);
     gemm_test!(test_gemm_4, gemm_4);
     gemm_test!(test_gemm_5, gemm_5);
+    gemm_test!(test_gemm_6, gemm_6);
 }
