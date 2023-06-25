@@ -71,7 +71,7 @@ pub fn gemm_3(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
         .unwrap();
     let BLOCKSIZE = 16;
     context.insert("BLOCKSIZE", &BLOCKSIZE);
-    let workgroup_size_x = BLOCKSIZE * BLOCKSIZE;
+    let workgroup_size_x = (BLOCKSIZE * BLOCKSIZE) / 4;
     let workgroup_size_y = 1;
     let workgroup_size_z = 1;
     let workload = Workload::new(
@@ -154,7 +154,7 @@ pub fn gemm_6(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
         .unwrap();
     let BM = 64;
     let BN = 64;
-    let BK = 16
+    let BK = 16;
     let TM = 4;
 
     context.insert("BM", &BM);

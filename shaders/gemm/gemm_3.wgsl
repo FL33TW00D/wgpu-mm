@@ -1,16 +1,17 @@
 //Kernel 3: Shared Memory Cache-Blocking
 //https://github.com/siboehm/SGEMM_CUDA/blob/master/src/kernels/3_kernel_shared_mem_blocking.cuh
 @group(0) @binding(0)
-var<storage, read> A: array<f32>;
+var<storage, read> A: array<vec4<f32>>;
 
 @group(0) @binding(1)
-var<storage, read> B: array<f32>;
+var<storage, read> B: array<vec4<f32>>;
 
 @group(0) @binding(2)
-var<storage, read_write> C: array<f32>;
+var<storage, read_write> C: array<vec4<f32>>;
 
-var<workgroup> As: array<f32, {{ BLOCKSIZE * BLOCKSIZE }}u>;
-var<workgroup> Bs: array<f32, {{ BLOCKSIZE * BLOCKSIZE }}u>;
+//64 vec4 in As and 64 vec4 in Bs
+var<workgroup> As: array<vec4<f32>, {{ (BLOCKSIZE * BLOCKSIZE) / 4 }}u>;
+var<workgroup> Bs: array<vec4<f32>, {{ (BLOCKSIZE * BLOCKSIZE) / 4 }}u>;
 
 @compute @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, {{ workgroup_size_z }})
 fn main(
@@ -21,29 +22,41 @@ fn main(
     let M = {{ M }}u;
     let N = {{ N }}u;
     let K = {{ K }}u;
-    let cRow = group_id.x; 
-    let cCol = group_id.y;
+    let cRow = group_id.x; // 0..64
+    let cCol = group_id.y; // 0..64
 
-    let threadCol = local_id.x % {{ BLOCKSIZE }}u;
-    let threadRow = local_id.x / {{ BLOCKSIZE }}u;
+    let threadCol = local_id.x % {{ BLOCKSIZE / 4 }}u; // 256 % 4 = 0..3
+    let threadRow = local_id.x / {{ BLOCKSIZE }}u; // 256 / 16 = 0..15
 
-    var aIdx = cRow * {{ BLOCKSIZE }}u * K;                    // row=cRow, col=0
-    var bIdx = cCol * {{ BLOCKSIZE }}u;                        // row=0, col=cCol
-    var cIdx = cRow * {{ BLOCKSIZE }}u * N + cCol * {{ BLOCKSIZE }}u; // row=cRow, col=cCol
+    var aIdx = cRow * {{ BLOCKSIZE / 4 }}u * (K / 4u);                    // row=cRow, col=0
+    var bIdx = cCol * {{ BLOCKSIZE / 4 }}u;                        // row=0, col=cCol
+    var cIdx = cRow * {{ BLOCKSIZE / 4 }}u * (N / 4u) + cCol * {{ BLOCKSIZE / 4 }}u; // row=cRow, col=cCol
 
-    var tmp = 0f;
-    for (var bkIdx = 0u; bkIdx < K; bkIdx += {{ BLOCKSIZE }}u) {
-        As[threadRow * {{ BLOCKSIZE }}u + threadCol] = A[aIdx + (threadRow * K + threadCol)];
-        Bs[threadRow * {{ BLOCKSIZE }}u + threadCol] = B[bIdx + (threadRow * N + threadCol)];
+    var acc = vec4<f32>(); 
+    for (var bkIdx = 0u; bkIdx < (K / 4u); bkIdx += {{ BLOCKSIZE / 4 }}u) {
+        As[threadRow * {{ BLOCKSIZE / 4 }}u + threadCol] = A[aIdx + (threadRow * (K / 4u) + threadCol)];
+        Bs[threadRow * {{ BLOCKSIZE / 4 }}u + threadCol] = B[bIdx + (threadRow * (N / 4u) + threadCol)];
         workgroupBarrier();
 
-        aIdx += {{ BLOCKSIZE }}u;
-        bIdx += {{ BLOCKSIZE }}u * N;
+        aIdx += {{ BLOCKSIZE / 4 }}u;
+        bIdx += {{ BLOCKSIZE }}u * (N / 4u);
 
-        for (var dotIdx = 0u; dotIdx < {{ BLOCKSIZE }}u; dotIdx += 1u) {
-            tmp = fma(As[threadRow * {{ BLOCKSIZE }}u + dotIdx], Bs[dotIdx * {{ BLOCKSIZE }}u + threadCol], tmp);
+        for(var dotIdx = 0u; dotIdx < {{ BLOCKSIZE / 4 }}u; dotIdx += 1u) {
+        let BCached0 = Bs[dotIdx * {{ BLOCKSIZE / 4 }}u + threadCol]; 
+        let BCached1 = Bs[(dotIdx + 1u) * {{ BLOCKSIZE / 4 }}u + threadCol];
+        let BCached2 = Bs[(dotIdx + 2u) * {{ BLOCKSIZE / 4 }}u + threadCol];
+        let BCached3 = Bs[(dotIdx + 3u) * {{ BLOCKSIZE / 4 }}u + threadCol];
+            
+            let ACached = As[threadRow * {{ BLOCKSIZE / 4 }}u + dotIdx];
+            acc = fma(BCached0, vec4<f32>(ACached.x), acc);
+            acc = fma(BCached1, vec4<f32>(ACached.y), acc);
+            acc = fma(BCached2, vec4<f32>(ACached.z), acc);
+            acc = fma(BCached3, vec4<f32>(ACached.w), acc);
         }
         workgroupBarrier();
     }
-    C[cIdx + (threadRow * N + threadCol)] = tmp;
+    //C[cIdx + (threadRow * (N / 4u))] = acc;
+    if(global_id.x == 0u && global_id.y == 0u && global_id.z == 0u) {
+        C[0] = acc; 
+    }
 }

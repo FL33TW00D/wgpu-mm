@@ -47,12 +47,9 @@ async fn check(
         rand_gpu_buffer::<f32>(&device, (K, N), true)
     };
 
-    /*
-    println!("A: {:?}\n", &A_cpu);
-    println!("B: {:?}\n", &B_cpu);
-    */
+    println!("A: {:?}\n", &A_cpu.clone().unwrap()[..16]);
 
-    let (C, C_cpu) = rand_gpu_buffer::<f32>(&device, (M, N), true);
+    let (C, C_cpu) = empty_buffer::<f32>(&device, (M, N), true);
     let mut C_cpu = C_cpu.unwrap();
 
     mm_ref(&A_cpu.unwrap(), &B_cpu.unwrap(), &mut C_cpu, dims);
@@ -141,6 +138,29 @@ where
         (buffer, Some(quantized))
     } else {
         (buffer, None)
+    }
+}
+
+fn empty_buffer<F: Float + bytemuck::Pod + AsPrimitive<i32> + Debug>(
+    device: &wgpu::Device,
+    dims: (usize, usize),
+    return_cpu: bool,
+) -> (wgpu::Buffer, Option<Vec<F>>)
+where
+    Standard: Distribution<F>,
+    F: SampleUniform,
+{
+    let (M, N) = dims;
+    let data = vec![F::zero(); M * N];
+    let gpu_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: None,
+        contents: bytemuck::cast_slice(&data),
+        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+    });
+    if return_cpu {
+        (gpu_buffer, Some(data))
+    } else {
+        (gpu_buffer, None)
     }
 }
 

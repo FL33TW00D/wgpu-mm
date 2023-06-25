@@ -1,31 +1,30 @@
-  fn mm_readA(batch: i32, row: i32, colIn: i32) -> f32 {
-    var value = f32(0.0);
-    let col = colIn * 1;
 
-    if(row < uniforms.aShape[1] && col < uniforms.aShape[2])
-    {
+@group(0) @binding(0)
+var<storage, read> A: array<vec4<f32>>;
 
-      value = getA(batch, row, col);
+@group(0) @binding(1)
+var<storage, read> B: array<vec4<f32>>;
 
-
-    }
-
-    return value;
-  }
-
-  fn mm_readB(batch: i32, row: i32, colIn: i32) -> f32 {
-    let col = colIn * 1;
-    var value = f32(0.0);
-    value = getB(batch, row, col);
-    return value
-  }
-
-  fn mm_write(batch: i32, row: i32, colIn: i32, valueIn: f32) {
-      let index = batch * 1024 * (1024/4) + row * 1024 + colIn;
-  }
+@group(0) @binding(2)
+var<storage, read_write> C: array<vec4<f32>>;
 
 var<workgroup> mm_Asub : array<array<vec4<f32>, 8>, 32>;
 var<workgroup> mm_Bsub : array<array<vec4<f32>, 8>, 32>;
+
+fn mm_readA(batch: i32, row: i32, colIn: i32) -> vec4<f32> {
+    let index = row * (1024/4) + colIn / 4;
+    return A[index];
+}
+
+fn mm_readB(batch: i32, row: i32, colIn: i32) -> vec4<f32> {
+    let index = batch * 1024 * (1024/4) + row * (1024/4) + colIn;
+    return B[index];
+}
+
+fn mm_write(batch: i32, row: i32, colIn: i32, valueIn: vec4<f32>) {
+  let index = batch * 1024 * (1024/4) + row * (1024/4) + colIn;
+  C[index] = valueIn;
+}
 
 @compute @workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, {{ workgroup_size_z }})
 fn main(
@@ -91,6 +90,14 @@ fn main(
         }
 
         workgroupBarrier();
+    }
+
+    if group_id.x == 0u && group_id.y == 0u && group_id.z == 0u && local_id.x == 0u && local_id.y == 0u {
+        for(var i = 0; i < 32; i++) {
+            for(var j = 0; j < 8; j++) {
+                debug[i * 32 + j] = mm_Asub[i][j];
+            }
+        }
     }
 
     for (var innerRow = 0; innerRow < 4; innerRow++) {
