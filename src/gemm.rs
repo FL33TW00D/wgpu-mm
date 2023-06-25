@@ -155,16 +155,14 @@ pub fn gemm_6(tera: &mut Tera, context: &mut Context) -> (Workload, String) {
     let BM = 64;
     let BN = 64;
     let BK = 16
-    let TM = 16;
-    let TN = 1;
+    let TM = 4;
 
     context.insert("BM", &BM);
     context.insert("BN", &BN);
     context.insert("BK", &BK);
     context.insert("TM", &TM);
-    context.insert("TN", &TN);
 
-    let workgroup_size_x = (BM * BN) / (TM * TN);
+    let workgroup_size_x = (BM * BN) / TM;
     let workgroup_size_y = 1;
     let workgroup_size_z = 1;
     let workload = Workload::new(

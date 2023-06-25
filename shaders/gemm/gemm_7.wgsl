@@ -23,16 +23,17 @@ fn main(
     let M = {{ M }}u;
     let N = {{ N }}u;
     let K = {{ K }}u;
-    let cRow = group_id.y; // 0..16 
-    let cCol = group_id.x; // 0..16
+    let cTileRow = group_id.y; // 0..16 
+    let cTileCol = group_id.x; // 0..16
 
-    let threadCol = local_id.x % {{ BN / TN }}u; // 256 % (64 / 1) = 0..63
-    let threadRow = local_id.x / {{ BN / TN }}u; // 256 / (64 / 1) = 0..3
+    let threadCol = local_id.x % {{ BN }}u; // 256 % 64 = 0..63
+    let threadRow = local_id.x / {{ BN }}u; // 256 / 64 = 0..3
 
     //top left corner of the matrix
-    var aIdx = cRow * {{ BM }}u * K / 4u);                    
-    var bIdx = cCol * {{ BN / 4 }}u;                        
-    var cIdx = cRow * {{ BM }}u * (N / 4u) + cCol * {{ BN / 4 }}u; 
+    //Where the march starts
+    var aIdx = cTileRow * {{ BM }}u * (K / 4u);                    
+    var bIdx = cTileCol * {{ BN / 4 }}u;                        
+    var cIdx = cTileRow * {{ BM }}u * (N / 4u) + cTileCol * {{ BN / 4 }}u; 
 
     let tileRowA = local_id.x / {{ BK / 4 }}u; // 256 / 4 = 0..63
     let tileColA = local_id.x % {{ BK / 4 }}u; // 256 % 4 = 0..3 
@@ -40,19 +41,11 @@ fn main(
     let tileRowB = local_id.x / {{ BN / 4 }}u; // 256 / 16 = 0..15
     let tileColB = local_id.x % {{ BN / 4 }}u; // 256 % 16 = 0..15
 
-    var threadResults = array<vec4<f32>, {{ (TM * TN) / 4 }}u>();
-
-    var regM = array<f32, {{ TM }}u>();
-    var regN = array<f32, {{ TN }}u>();
+    // 16 * 4 = 64 results per thread
+    var threadResults = array<vec4<f32>, 4u>();
 
     for (var bkIdx = 0u; bkIdx < K; bkIdx += {{ BK }}u) {
-
-        var tmp = A[aIdx + (tileRowA * K + tileColA * 4u)];
-        As[(tileColA * 4u + 0u) * {{ BM }}u + tileRowA] = tmp.x;
-        As[(tileColA * 4u + 1u) * {{ BM }}u + tileRowA] = tmp.y;
-        As[(tileColA * 4u + 2u) * {{ BM }}u + tileRowA] = tmp.z;
-        As[(tileColA * 4u + 3u) * {{ BM }}u + tileRowA] = tmp.w;
-        
+        As[tileRowA * {{ BK }}u + tileColA * 4u] = A[aIdx + (tileRowA * K + tileColA * 4u)];
         Bs[tileRowB * {{ BN }}u + tileColB * 4u] = B[bIdx + (tileRowB * N + tileColB * 4u)];
         workgroupBarrier();
 
@@ -60,28 +53,13 @@ fn main(
         bIdx += {{ BK }}u * (N / 4u);
 
         for (var dotIdx = 0u; dotIdx < {{ BK }}u; dotIdx++) {
-            for (var i = 0u; i < {{ TM }}u; i++) {
-                regM[i] = As[dotIdx * {{ BM }}u + threadRow * {{ TM }}u + i];
-            }
-            for (var i = 0u; i < {{ TN }}u; i++) {
-                regN[i] = Bs[dotIdx * {{ BN }}u + threadCol * {{ TN }}u + i];
-            }
-            for (var resIdxM = 0u; resIdxM < {{ TM }}u; resIdxM++) {
-                for (var resIdxN = 0u; resIdxN < {{ TN }}u; resIdxN++) {
-                    threadResults[resIdxM * {{ TN }}u + resIdxN] += regM[resIdxM] * regN[resIdxN];
-                }
+            let tmpA = As[(tileRowA * {{ BK }}u + dotIdx) / 4u];
+            for (var resIdx = 0u; resIdx < 4u; resIdx++) {
+                let tmpB = Bs[(tileColB * {{ BN }}u + resIdx) / 4u];
+                threadResults[ ] += vec4<f32>(tmpA[resIdx]) * tmpB; 
             }
         }
         workgroupBarrier();
     }
-    for (var resIdxM = 0u; resIdxM < {{ TM }}u; resIdxM++) {
-        for (var resIdxN = 0u; resIdxN < {{ TN }}u; resIdxN += 4u) {
-            var tmp = C[cIdx + (threadRow * {{ TM }}u + resIdxM) * N + threadCol * {{ TN }}u + resIdxN]; 
-            tmp.x += threadResults[resIdxM * {{ TN }}u + resIdxN];
-            tmp.y += threadResults[resIdxM * {{ TN }}u + resIdxN + 1u];
-            tmp.z += threadResults[resIdxM * {{ TN }}u + resIdxN + 2u];
-            tmp.w += threadResults[resIdxM * {{ TN }}u + resIdxN + 3u];
-            C[cIdx + (threadRow * {{ TM }}u + resIdxM) * N + threadCol * {{ TN }}u + resIdxN] = tmp;
-        }
-    }
+
 }
